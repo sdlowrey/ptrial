@@ -1,6 +1,7 @@
 
 import json
 from Queue import Queue
+import random
 import time
 
 # Constants
@@ -59,20 +60,20 @@ class ObserverBase(object):
         """
         Read data from the observed source. This method should be overridden by subclasses.
         
-        Note that this method handles data. It is not concerned with time/timestamps.
+        Note that this method handles data only. It is not concerned with time/timestamps.
         
         Returns:
           A dictionary of metric names and values.  The value can be any object type.
         """
-        return { 'test' : None }
+        pass
     
     def close_source(self):
         """
         Close the file or connection. Subclasses that override this method should call the base
         method after doing their own work.
         """
-        self._source = None
-        
+        pass
+    
     def get_datapoint(self):
         """
         Retrieve a datapoint. Data format depends on self._data_format.
@@ -96,17 +97,47 @@ class LoopObserver(ObserverBase):
     Record observations at regular intervals and place data into a queue.
     
     Objects of this type should run in a thread. The caller creates the queue passes it to the
-    observer during init.
+    observer during init:
+    
+    Example:
+        input_q = Queue()
+        obs = observer.LoopObserver('looper')
+        obs_thread = Thread(target=obs.run, args=(input_q,))
+        obs_thread.start()
     """
-        
-    def run(self, outq, interval=1):
+    def run(self, outq, interval=1, count=0):
         """
-        Continually place observed data into the queue.        
+        Continually place observed data into the queue. Reads until the stop() method is called.
+        If the optional count parameter is specified, read N times or until stop().
+        
+        Args:
+          outq: output queue for datapoints
+          interval: sleep interval in seconds between datapoints; default is 1 second
+          count: number of datapoints to read; defaults to 0 (no limit)
         """
         self._run = True
-        while self._run:
+        counting = False
+        if count > 0:
+            counting = True
+        else:
+            count = 1
+        self._end_data = object()
+        while self._run and count > 0:
+            if counting:
+                count -= 1
             outq.put(self.get_datapoint())
             time.sleep(interval)
+        outq.put(self._end_data)
 
     def stop(self):
         self._run = False
+
+class TestLoopObserver(LoopObserver):
+    """
+    A loop server that generates random data for testing.
+    
+    Does not require open_source or close_source overrides.
+    """
+    def read_source(self):
+        return { 'test' : random.randint(1,999999) }
+    

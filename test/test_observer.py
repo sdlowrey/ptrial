@@ -6,7 +6,7 @@
 
 import json
 import observer
-from Queue import Queue
+from Queue import Queue, Empty
 from threading import Thread
 import time
 import unittest
@@ -33,20 +33,32 @@ class BaseObserverNameTestCase(unittest.TestCase):
         obs = observer.ObserverBase(name)
         self.assertEqual(obs.name, '1234')
 
-class BaseObserverDataTestCase(unittest.TestCase):
+class ObserverDataTestCase(unittest.TestCase):
     """
-    The base observer can "get" a null datapoint.  The timestamp is now and the data is a
+    The BaseObserver can "get" a test datapoint.  The timestamp is now and the data is a
     dict with a single test element.  
+    
+    The TestLoopServer observer continually returns test data.
     
     Callers would not normally access the internal datapoint directly, but we can for testing. (The
     data is returned to the caller in a coded format for serialization.)
     """
 
-    def test_dummy_get(self):
-        obs = observer.ObserverBase('dummy')
-        obs.get_datapoint()
-        self.assertAlmostEqual(obs._datapoint.keys()[0], int(time.time()))
-        self.assertEqual(obs._datapoint.values()[0], {'test': None})
+    def setUp(self):
+        self.metric_name = 'test'
+        self.datarange = range(1,999999)
+        
+    def verify(self, data):
+        """
+        Check a test data dictionary.  Walk through all the keys (timestamps) and then verify the
+        value (metrics) by walking through each of those keys.
+        """
+        now = int(time.time())
+        for ts in data.keys():
+            self.assertAlmostEqual(ts, now)
+            for metric in data[ts].keys():
+                self.assertEqual(metric, self.metric_name)
+                self.assertIn(data[ts][metric], self.datarange)
         
     def test_ascii_time_format(self):
         obs = observer.ObserverBase('dummy', time_format=observer.OBS_ASCII_TIME)
@@ -54,24 +66,34 @@ class BaseObserverDataTestCase(unittest.TestCase):
         # just check the decade by looking at the first 3 characters of the key
         decade = int(obs._datapoint.keys()[0][:3])
         self.assertEqual(decade, 201)
-
-
-class LoopObserverTestCase(unittest.TestCase):
-    """
-    Test a continuous loop observer, which runs in its own thread and communicates with other
-    threads via queue.
-    """        
         
-    def test_interval_data(self):
+    def test_interval_data_count(self):
+        """
+        Test LoopObserver using a count limit.
+        """
         input_q = Queue()
-        obs = observer.LoopObserver('looper')
-        obs_thread = Thread(target=obs.run, args=(input_q,))
+        obs = observer.TestLoopObserver('testlooper')
+        args = {'outq': input_q, 'count': 3}
+        obs_thread = Thread(target=obs.run, kwargs=args)
         obs_thread.start()
-
-        for i in range(3):
+        while True:
             data = input_q.get(timeout=2)
-            self.assertAlmostEqual(data.keys()[0], int(time.time()))
-            self.assertEqual(data.values()[0], {'test': None})
-            time.sleep(1)
+            if data is obs._end_data:
+                break
+            self.verify(data)
         obs.stop()
         obs_thread.join()
+
+    def test_interval_data_stop(self):
+        """
+        Test loop observer with explicit stop.  
+        """
+        input_q = Queue()
+        obs = observer.TestLoopObserver('testlooper')
+        args = {'outq': input_q}
+        obs_thread = Thread(target=obs.run, args=(input_q,))
+        obs_thread.start()
+        time.sleep(3)  # queue up some data
+        obs.stop()
+        obs_thread.join()
+            
