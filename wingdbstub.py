@@ -1,0 +1,1 @@
+/usr/lib/wingide4.1/wingdbstub.py

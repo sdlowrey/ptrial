@@ -6,6 +6,8 @@
 
 import json
 import observer
+from Queue import Queue
+from threading import Thread
 import time
 import unittest
 
@@ -20,7 +22,7 @@ class BaseObserverNameTestCase(unittest.TestCase):
         del obs
         
     def test_no_name(self):
-        self.assertRaises(observer.ObserverError, observer.ObserverBase)
+        self.assertRaises(TypeError, observer.ObserverBase)
 
     def test_empty_name(self):
         name = ''
@@ -47,25 +49,29 @@ class BaseObserverDataTestCase(unittest.TestCase):
         self.assertEqual(obs._datapoint.values()[0], {'test': None})
         
     def test_ascii_time_format(self):
-        obs = observer.ObserverBase('dummy', time_format=observer.OBS_TIME_FORMAT_ASCII)
+        obs = observer.ObserverBase('dummy', time_format=observer.OBS_ASCII_TIME)
         obs.get_datapoint()
         # just check the decade by looking at the first 3 characters of the key
         decade = int(obs._datapoint.keys()[0][:3])
         self.assertEqual(decade, 201)
 
-    def test_json_integer_time(self):
-        """
-        Verify that the integer time stamp can withstand JSON encoding.
-        
-        The timestamp is an integer key in the Python dict, but keys have to be strings in JSON.
-        (Values can still be numeric.)
-        """
-        obs = observer.ObserverBase('dummy')
-        jdata = obs.get_datapoint()
-        pdata = json.loads(jdata)
-        jtime = int(pdata.keys()[0])
-        t = time.gmtime(jtime)
-        print 'hellweg:', t
-        self.assertAlmostEqual(t, time.gmtime())
 
+class LoopObserverTestCase(unittest.TestCase):
+    """
+    Test a continuous loop observer, which runs in its own thread and communicates with other
+    threads via queue.
+    """        
         
+    def test_interval_data(self):
+        input_q = Queue()
+        obs = observer.LoopObserver('looper')
+        obs_thread = Thread(target=obs.run, args=(input_q,))
+        obs_thread.start()
+
+        for i in range(3):
+            data = input_q.get(timeout=2)
+            self.assertAlmostEqual(data.keys()[0], int(time.time()))
+            self.assertEqual(data.values()[0], {'test': None})
+            time.sleep(1)
+        obs.stop()
+        obs_thread.join()

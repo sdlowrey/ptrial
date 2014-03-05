@@ -1,20 +1,20 @@
-# Max line length = 100                                                                            1
-#        1         2         3         4         5         6         7         8         9         0
-#234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
 
 import json
+from Queue import Queue
 import time
 
 # Constants
 OBS_TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
-OBS_TIME_FORMAT_INTEGER = 1
-OBS_TIME_FORMAT_ASCII   = 2
+OBS_INTEGER_TIME = 1
+OBS_ASCII_TIME   = 2
 
-OBS_ENCODE_JSON = 1
-OBS_ENCODE_PYTHON = 2
+OBS_JSON_DATA = 1
+OBS_PYTHON_DATA = 2
 
 # Exception messages
-OBS_NAME_ERR = 'An observer must have a name'
+OBS_INVALID_NAME = 'An observer must have a name'
+OBS_INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
+OBS_INVALID_ARG = 'Argument {} is an invalid type'
 
 class ObserverError(Exception):
     pass
@@ -30,25 +30,24 @@ class ObserverBase(object):
       name: name of the observer
     """
     
-    def __init__(self, name=None, time_format=OBS_TIME_FORMAT_INTEGER):
+    def __init__(self, name, time_format=OBS_INTEGER_TIME, data_format=OBS_PYTHON_DATA):
         """
         Check the name and determine the time formatting function to use.
         
         Args:
-          name: the name of this observer; preferably a string
-          time_enc: integer (default) or ASCII; use OBS_TIME_* constants.
+          name: the name of this observer; must be a string or have a string representation
+          time_enc: optional encoding format integer or ASCII; use OBS_TIME_* constants.
         """
-        # Raise an error if caller did not specify or if type can't be converted
         if not name:
-            raise ObserverError(OBS_NAME_ERR)
+            raise ObserverError(OBS_INVALID_NAME)
         self.name = str(name)
-        
         self._time = self._integer_time
-        if time_format == OBS_TIME_FORMAT_ASCII:
+        if time_format == OBS_ASCII_TIME:
             self._time = self._ascii_time
             
         self._source = None
         self._datapoint = None
+        self._data_format = data_format
 
     def open_source(self):
         """
@@ -76,22 +75,38 @@ class ObserverBase(object):
         
     def get_datapoint(self):
         """
-        Retrieve a datapoint. The datapoint is stored as a "native" attribute of the caller but is
-        returned to the caller as an encoded (serialized) object.
+        Retrieve a datapoint. Data format depends on self._data_format.
         """
         self.open_source()
         self._datapoint = { self._time() : self.read_source() }
         self.close_source()
-        return self._encode(self._datapoint)
+        if self._data_format == OBS_PYTHON_DATA:
+            return self._datapoint
+        # Note that this does not change the datapoint itself
+        return json.dumps(self._datapoint)
 
     def _ascii_time(self):
         return time.strftime(OBS_TIME_STRING_FORMAT)
     
     def _integer_time(self):
         return int(time.time())
+
+class LoopObserver(ObserverBase):
+    """
+    Record observations at regular intervals and place data into a queue.
     
-    def _encode(self, data):
+    Objects of this type should run in a thread. The caller creates the queue passes it to the
+    observer during init.
+    """
+        
+    def run(self, outq, interval=1):
         """
-        Encode a data object into JSON structure. Subclasses may override.
+        Continually place observed data into the queue.        
         """
-        return json.dumps(data)
+        self._run = True
+        while self._run:
+            outq.put(self.get_datapoint())
+            time.sleep(interval)
+
+    def stop(self):
+        self._run = False
