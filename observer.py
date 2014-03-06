@@ -127,6 +127,6 @@ class TestLoopObserver(LoopObserver):
     
     Does not require open_source or close_source overrides.
     """
-    def read_source(self):
+    def _read_source(self):
         return { 'test' : random.randint(1,999999) }
     
