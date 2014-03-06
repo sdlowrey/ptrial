@@ -138,8 +138,12 @@ class StorageObserver(LoopObserver):
     BLOCK_STAT_FMT = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 'wr_blk',
                       'wr_tm', 'io_prog', 'io_tm','io_tmw')
     
+    def __init__(self, name, dev, time_format=OBS_INTEGER_TIME, data_format=OBS_PYTHON_DATA):
+        super(StorageObserver, self).__init__(name, time_format, data_format)
+        self._device = dev
+    
     def _read_source(self):
-        f = open('/sys/block/sda/stat')
+        f = open('/sys/block/{}/stat'.format(self._device))
         statline = f.readline().strip()
         f.close()
         data = dict(zip(StorageObserver.BLOCK_STAT_FMT, statline.split()))
