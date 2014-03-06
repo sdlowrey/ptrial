@@ -49,42 +49,31 @@ class ObserverBase(object):
         self._source = None
         self._datapoint = None
         self._data_format = data_format
+            
+    def get_datapoint(self):
+        """
+        Retrieve a datapoint. Data format depends on self._data_format.
+        """
+        self._datapoint = { self._time() : self._read_source() }
+        if self._data_format == OBS_PYTHON_DATA:
+            return self._datapoint
+        # Note that this does not change the datapoint itself
+        return json.dumps(self._datapoint)
 
-    def open_source(self):
+    def _read_source(self):
         """
-        Open the data source being observed.
-        """
-        pass
-    
-    def read_source(self):
-        """
-        Read data from the observed source. This method should be overridden by subclasses.
+        Read data from the observed source.
         
-        Note that this method handles data only. It is not concerned with time/timestamps.
+        This method handles data only. It is not concerned with time/timestamps.
+
+        Subclasses must override this method.  They need to manage the connection to the data
+        source themselves.  Some classes may want to open and close the source during each call.
+        Others may open the source once and leave it open.
         
         Returns:
           A dictionary of metric names and values.  The value can be any object type.
         """
         pass
-    
-    def close_source(self):
-        """
-        Close the file or connection. Subclasses that override this method should call the base
-        method after doing their own work.
-        """
-        pass
-    
-    def get_datapoint(self):
-        """
-        Retrieve a datapoint. Data format depends on self._data_format.
-        """
-        self.open_source()
-        self._datapoint = { self._time() : self.read_source() }
-        self.close_source()
-        if self._data_format == OBS_PYTHON_DATA:
-            return self._datapoint
-        # Note that this does not change the datapoint itself
-        return json.dumps(self._datapoint)
 
     def _ascii_time(self):
         return time.strftime(OBS_TIME_STRING_FORMAT)
