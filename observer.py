@@ -4,19 +4,19 @@ from Queue import Queue
 import random
 import time
 
-# Constants
-OBS_TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
-OBS_INTEGER_TIME = 1
-OBS_ASCII_TIME   = 2
+# Public constants
+TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
+INTEGER_TIME = 1
+ASCII_TIME   = 2
 
-OBS_JSON_DATA = 1
-OBS_PYTHON_DATA = 2
-OBS_CSV_DATA = 3
+JSON_DATA   = 1
+PYTHON_DATA = 2
+CSV_DATA    = 3
 
-# Exception messages
-OBS_INVALID_NAME = 'An observer must have a name'
-OBS_INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
-OBS_INVALID_ARG = 'Argument {} is an invalid type'
+# Private constants
+_INVALID_NAME     = 'An observer must have a name'
+_INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
+_INVALID_ARG      = 'Argument {} is an _INVALID type'
 
 class ObserverError(Exception):
     pass
@@ -32,28 +32,20 @@ class ObserverBase(object):
       name: name of the observer
     """
     
-    def __init__(self, name, time_format=OBS_INTEGER_TIME, data_format=OBS_PYTHON_DATA):
+    def __init__(self, name, time_format=INTEGER_TIME):
         """
         Check the name and determine the time formatting function to use.
         
         Args:
           name: the name of this observer; must be a string or have a string representation
-          time_enc: optional encoding format integer or ASCII; use OBS_TIME_* constants.
+          time_enc: optional encoding format integer or ASCII; use TIME_* constants.
         """
         if not name:
-            raise ObserverError(OBS_INVALID_NAME)
+            raise ObserverError(_INVALID_NAME)
         self.name = str(name)
         self._time = self._integer_time
-        if time_format == OBS_ASCII_TIME:
+        if time_format == ASCII_TIME:
             self._time = self._ascii_time
-
-        # Map numeric data formats to methods
-        encoder = {
-            OBS_JSON_DATA: self._json_data,
-            OBS_PYTHON_DATA: self._python_data,
-            OBS_CSV_DATA: self._csv_data
-        }
-        self._encode = encoder[data_format]
 
         self._source = None
         self._datapoint = None
@@ -63,7 +55,7 @@ class ObserverBase(object):
         Retrieve a datapoint. Data format depends on self._data_format.
         """
         self._datapoint = { 'name': self.name, self._time() : self._read_source() }
-        return self._encode()
+        return self._datapoint
 
     def _read_source(self):
         """
@@ -81,20 +73,10 @@ class ObserverBase(object):
         pass
 
     def _ascii_time(self):
-        return time.strftime(OBS_TIME_STRING_FORMAT)
+        return time.strftime(TIME_STRING_FORMAT)
     
     def _integer_time(self):
-        return int(time.time())
-    
-    def _csv_data(self):
-        return self._datapoint
-
-    def _json_data(self):
-        return json.dumps(self._datapoint)
-
-    def _python_data(self):
-        return self._datapoint
-    
+        return int(time.time())    
 
 class LoopObserver(ObserverBase):
     """
@@ -106,8 +88,8 @@ class LoopObserver(ObserverBase):
     Example:
         input_q = Queue()
         obs = observer.LoopObserver('looper')
-        obs_thread = Thread(target=obs.run, args=(input_q,))
-        obs_thread.start()
+        thread = Thread(target=obs.run, args=(input_q,))
+        thread.start()
     """
     def run(self, outq, interval=1, count=0):
         """
@@ -153,7 +135,7 @@ class StorageObserver(LoopObserver):
     BLOCK_STAT_FMT = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 'wr_blk',
                       'wr_tm', 'io_prog', 'io_tm','io_tmw')
     
-    def __init__(self, name, dev, time_format=OBS_INTEGER_TIME, data_format=OBS_PYTHON_DATA):
+    def __init__(self, name, dev, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
         super(StorageObserver, self).__init__(name, time_format, data_format)
         self._device = dev
     
@@ -173,9 +155,9 @@ class ObservationManager(object):
         Change the data format on the fly.
         """
         encoder = {
-            OBS_JSON_DATA: self._json_data,
-            OBS_PYTHON_DATA: self._python_data,
-            OBS_CSV_DATA: self._csv_data
+            JSON_DATA: self._json_data,
+            PYTHON_DATA: self._python_data,
+            CSV_DATA: self._csv_data
         }
         self._encode = encoder[fmt]
         

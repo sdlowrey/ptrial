@@ -65,11 +65,14 @@ class ObserverDataTestCase(unittest.TestCase):
                     self.assertIn(data[k][metric], self.datarange)
         
     def test_ascii_time_format(self):
-        obs = observer.ObserverBase('dummy', time_format=observer.OBS_ASCII_TIME)
+        obs = observer.ObserverBase('dummy', time_format=observer.ASCII_TIME)
         obs.get_datapoint()
         # just check the decade by looking at the first 3 characters of the key
-        decade = int(obs._datapoint.keys()[0][:3])
-        self.assertEqual(decade, 201)
+        for k in obs._datapoint.keys():
+            if k == 'name':
+                continue
+            decade = int(obs._datapoint.keys()[0][:3])
+            self.assertEqual(decade, 201)
         
     def test_interval_data_count(self):
         """
@@ -100,4 +103,8 @@ class ObserverDataTestCase(unittest.TestCase):
         time.sleep(3)  # queue up some data
         obs.stop()
         obs_thread.join()
-            
+
+class StorageObserverTest(unittest.TestCase):
+    """
+    A StorageObserver grabs stats for a storage device for a directory/partition.
+    """
