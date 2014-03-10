@@ -1,8 +1,12 @@
 
 import json
+import os.path
 from Queue import Queue
 import random
+import re
+import subprocess
 import time
+import wingdbstub
 
 # Public constants
 TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
@@ -14,9 +18,11 @@ PYTHON_DATA = 2
 CSV_DATA    = 3
 
 # Private constants
-_INVALID_NAME     = 'An observer must have a name'
-_INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
 _INVALID_ARG      = 'Argument {} is an _INVALID type'
+_INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
+_INVALID_NAME     = 'An observer must have a name'
+_INVALID_PATH     = 'No such path "{}"'
+_PATH_PART_NOT_FOUND = 'Partition for "{}" directory not found'
 
 class ObserverError(Exception):
     pass
@@ -132,18 +138,61 @@ class StorageObserver(LoopObserver):
     Get the block I/O stats for a device.
     """
     # https://www.kernel.org/doc/Documentation/iostats.txt
-    BLOCK_STAT_FMT = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 'wr_blk',
-                      'wr_tm', 'io_prog', 'io_tm','io_tmw')
+    BLOCK_STATS = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 'wr_blk',
+                   'wr_tm', 'io_prog', 'io_tm','io_tmw')
     
-    def __init__(self, name, dev, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
-        super(StorageObserver, self).__init__(name, time_format, data_format)
+    def __init__(self, name, dev=None, time_format=INTEGER_TIME):
+        super(StorageObserver, self).__init__(name, time_format)
         self._device = dev
-    
+        self._path = None
+        
+    def set_device(self, path):
+        """
+        Observe the partition that is associated with a directory.
+        
+        TODO: handle more args and tie in to the constructor
+        
+        Args:
+          path: directory
+        """
+        if not os.path.exists(path):
+            raise ObserverError(_INVALID_PATH.format(path))
+        self._path = path
+        self._get_partition_dev(path)
+        
+    def _get_partition_dev(self, path):
+        """
+        Get the partition device associated with a path
+        """
+        # build a dict of mountpoints and their device names
+        mountpoint = {}
+        mounts = subprocess.check_output(['mount']).split('\n')
+        for mount in mounts:
+            fields = mount.split()
+            if not fields:
+                continue
+            mountpoint[fields[2]] = fields[0]
+
+        previous = ''
+        while path != previous:
+            if path in mountpoint.keys():
+                # we have the partition; get the real device file if it's a symlink
+                try:
+                    realdev = os.readlink(mountpoint[path])
+                    self._device = os.path.basename(realdev)
+                except OSError:
+                    # it's not a symlink
+                    self._device = os.path.basename(mountpoint[path])
+                return
+            previous = path
+            path = os.path.dirname(path)
+        raise ObserverError(_PATH_PART_NOT_FOUND.format(self._path))
+  
     def _read_source(self):
         f = open('/sys/block/{}/stat'.format(self._device))
         statline = f.readline().strip()
         f.close()
-        data = dict(zip(StorageObserver.BLOCK_STAT_FMT, statline.split()))
+        data = dict(zip(StorageObserver.BLOCK_STATS, statline.split()))
         return data
 
 class ObservationManager(object):
@@ -191,9 +240,9 @@ class ObservationManager(object):
 if __name__ == '__main__':
     data = {'name': 'buddy', 12345: {'metric1': 1231, 'metric2': 989}}
     
-    om = ObservationManager(OBS_JSON_DATA)
+    om = ObservationManager(JSON_DATA)
     om.store(data)
-    om.set_data_format(OBS_PYTHON_DATA)
+    om.set_data_format(PYTHON_DATA)
     om.store(data)
-    om.set_data_format(OBS_CSV_DATA)
+    om.set_data_format(CSV_DATA)
     om.store(data)    

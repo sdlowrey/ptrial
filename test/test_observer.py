@@ -67,12 +67,11 @@ class ObserverDataTestCase(unittest.TestCase):
     def test_ascii_time_format(self):
         obs = observer.ObserverBase('dummy', time_format=observer.ASCII_TIME)
         obs.get_datapoint()
+        # delete the 'name' attribute, leaving only the timestamp key/value
         # just check the decade by looking at the first 3 characters of the key
-        for k in obs._datapoint.keys():
-            if k == 'name':
-                continue
-            decade = int(obs._datapoint.keys()[0][:3])
-            self.assertEqual(decade, 201)
+        del obs._datapoint['name']
+        decade = int(obs._datapoint.keys()[0][:3])
+        self.assertEqual(decade, 201)
         
     def test_interval_data_count(self):
         """
@@ -108,3 +107,32 @@ class StorageObserverTest(unittest.TestCase):
     """
     A StorageObserver grabs stats for a storage device for a directory/partition.
     """
+    def setUp(self):
+        name = 'var partition'
+        self.obs = observer.StorageObserver(name)
+        self.obs.set_device('/var')
+        self.q = Queue()
+        
+    def verify(self, data):
+        if data is self.obs._end_data:
+            return
+        now = int(time.time())
+        for k in data.keys():
+            if k is 'name':
+                self.assertEqual(data[k], self.obs.name)
+            else:
+                self.assertAlmostEqual(k, now)
+                for metric in data[k].keys():
+                    self.assertIn(metric, self.obs.BLOCK_STATS)
+                    self.assertGreaterEqual(data[k][metric], 0)
+        
+    def test_iter_2(self):
+        arg = { 'outq': self.q, 'count': 2 }
+        t = Thread(target=self.obs.run, kwargs=arg)
+        t.start()
+        data = {}
+        while data is not self.obs._end_data:
+            data = self.q.get(timeout=2)
+            self.verify(data)
+        self.obs.stop()
+        t.join()
