@@ -46,6 +46,7 @@ class ObserverDataTestCase(unittest.TestCase):
 
     def setUp(self):
         self.metric_name = 'test'
+        self.observer_name = 'testlooper'
         self.datarange = range(1,999999)
         
     def verify(self, data):
@@ -54,11 +55,14 @@ class ObserverDataTestCase(unittest.TestCase):
         value (metrics) by walking through each of those keys.
         """
         now = int(time.time())
-        for ts in data.keys():
-            self.assertAlmostEqual(ts, now)
-            for metric in data[ts].keys():
-                self.assertEqual(metric, self.metric_name)
-                self.assertIn(data[ts][metric], self.datarange)
+        for k in data.keys():
+            if k is 'name':
+                self.assertEqual(data[k], self.observer_name)
+            else:
+                self.assertAlmostEqual(k, now)
+                for metric in data[k].keys():
+                    self.assertEqual(metric, self.metric_name)
+                    self.assertIn(data[k][metric], self.datarange)
         
     def test_ascii_time_format(self):
         obs = observer.ObserverBase('dummy', time_format=observer.OBS_ASCII_TIME)
@@ -72,7 +76,7 @@ class ObserverDataTestCase(unittest.TestCase):
         Test LoopObserver using a count limit.
         """
         input_q = Queue()
-        obs = observer.TestLoopObserver('testlooper')
+        obs = observer.TestLoopObserver(self.observer_name)
         args = {'outq': input_q, 'count': 3}
         obs_thread = Thread(target=obs.run, kwargs=args)
         obs_thread.start()
@@ -89,7 +93,7 @@ class ObserverDataTestCase(unittest.TestCase):
         Test loop observer with explicit stop.  
         """
         input_q = Queue()
-        obs = observer.TestLoopObserver('testlooper')
+        obs = observer.TestLoopObserver(self.observer_name)
         args = {'outq': input_q}
         obs_thread = Thread(target=obs.run, args=(input_q,))
         obs_thread.start()

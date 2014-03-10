@@ -11,6 +11,7 @@ OBS_ASCII_TIME   = 2
 
 OBS_JSON_DATA = 1
 OBS_PYTHON_DATA = 2
+OBS_CSV_DATA = 3
 
 # Exception messages
 OBS_INVALID_NAME = 'An observer must have a name'
@@ -45,20 +46,24 @@ class ObserverBase(object):
         self._time = self._integer_time
         if time_format == OBS_ASCII_TIME:
             self._time = self._ascii_time
-            
+
+        # Map numeric data formats to methods
+        encoder = {
+            OBS_JSON_DATA: self._json_data,
+            OBS_PYTHON_DATA: self._python_data,
+            OBS_CSV_DATA: self._csv_data
+        }
+        self._encode = encoder[data_format]
+
         self._source = None
         self._datapoint = None
-        self._data_format = data_format
             
     def get_datapoint(self):
         """
         Retrieve a datapoint. Data format depends on self._data_format.
         """
-        self._datapoint = { self._time() : self._read_source() }
-        if self._data_format == OBS_PYTHON_DATA:
-            return self._datapoint
-        # Note that this does not change the datapoint itself
-        return json.dumps(self._datapoint)
+        self._datapoint = { 'name': self.name, self._time() : self._read_source() }
+        return self._encode()
 
     def _read_source(self):
         """
@@ -80,6 +85,16 @@ class ObserverBase(object):
     
     def _integer_time(self):
         return int(time.time())
+    
+    def _csv_data(self):
+        return self._datapoint
+
+    def _json_data(self):
+        return json.dumps(self._datapoint)
+
+    def _python_data(self):
+        return self._datapoint
+    
 
 class LoopObserver(ObserverBase):
     """
@@ -148,3 +163,55 @@ class StorageObserver(LoopObserver):
         f.close()
         data = dict(zip(StorageObserver.BLOCK_STAT_FMT, statline.split()))
         return data
+
+class ObservationManager(object):
+    def __init__(self, fmt):
+        self.set_data_format(fmt)
+
+    def set_data_format(self, fmt):
+        """
+        Change the data format on the fly.
+        """
+        encoder = {
+            OBS_JSON_DATA: self._json_data,
+            OBS_PYTHON_DATA: self._python_data,
+            OBS_CSV_DATA: self._csv_data
+        }
+        self._encode = encoder[fmt]
+        
+    def store(self, data):
+        print self._encode(data)
+    
+    def _csv_data(self, data):
+        """
+        Reformat a datapoint as a CSV string.
+        
+        Because timestamp is a key (and thus constantly changes) the writers in the Python csv
+        module aren't of much use.  It's easy enough to handle here, though.
+        """
+        # the trick here is to find the timestamp key
+        for k in data.keys():
+            if type(k) is int:
+                ts = k
+                
+        print 'file?: {}'.format(data['name'])
+        line = str(ts)
+        for k in data[ts].keys():
+            line = line + ',' + str(data[ts][k])
+        return line
+    
+    def _json_data(self, data):
+        return json.dumps(data)
+    
+    def _python_data(self, data):
+        return data
+
+if __name__ == '__main__':
+    data = {'name': 'buddy', 12345: {'metric1': 1231, 'metric2': 989}}
+    
+    om = ObservationManager(OBS_JSON_DATA)
+    om.store(data)
+    om.set_data_format(OBS_PYTHON_DATA)
+    om.store(data)
+    om.set_data_format(OBS_CSV_DATA)
+    om.store(data)    
