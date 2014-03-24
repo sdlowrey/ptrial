@@ -28,5 +28,6 @@ def randfile(path, nbytes):
         f.close()
     return name
 
-print randfile('/tmp', 1)
+if __name__ == '__main__':
+    print '1 byte to /tmp/{}'.format(randfile('/tmp', 1))
     
