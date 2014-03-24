@@ -1,8 +1,13 @@
 """
 Emulate system load by generating data in files, memory, and databases.
+
+This is just a test bed at the moment...
 """
+import MySQLdb
 import random
 import tempfile
+
+SILO_DB_PORT = 7706
 
 # notes: change the 50-byte range to a "record size" arg, change nbytes to "nrec"
 
@@ -28,6 +33,16 @@ def randfile(path, nbytes):
         f.close()
     return name
 
-if __name__ == '__main__':
-    print '1 byte to /tmp/{}'.format(randfile('/tmp', 1))
+def get_db(host, user, password, port=SILO_DB_PORT):
+    kwargs = { 'host': host, 'port': port, 'user': user, 'passwd': password } 
     
+    conn = MySQLdb.Connection(**kwargs)
+    
+    return conn
+
+if __name__ == '__main__':
+    #print '1 byte to /tmp/{}'.format(randfile('/tmp', 1))
+    c = get_db('172.16.10.60', 'root', 'em7admin')
+    #test_schema = 'gen_schema_1'
+    #create_schema(test_schema)
+    c.close()
