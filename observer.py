@@ -4,9 +4,9 @@ import os.path
 from Queue import Queue
 import random
 import re
+import string
 import subprocess
 import time
-import wingdbstub
 
 # Public constants
 TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
@@ -189,9 +189,16 @@ class StorageObserver(LoopObserver):
         raise ObserverError(_PATH_PART_NOT_FOUND.format(self._path))
   
     def _read_source(self):
-        f = open('/sys/block/{}/stat'.format(self._device))
-        statline = f.readline().strip()
-        f.close()
+        """Get the metrics for the device and put them into a dictionary.
+        """
+        # Block device trees vary a little.  If the newer path doesn't work, try the older
+        # one (2.6.18 era).  If that doesn't work, open() will toss IOError.
+        devpath = '/sys/block/{}/stat'.format(self._device)
+        if not os.path.exists(devpath):
+            devpath =  '/sys/block/{}/{}/stat'.format(self._device.rstrip(string.digits),
+                                                      self._device)
+        with open(devpath) as f:
+            statline = f.readline().strip()
         data = dict(zip(StorageObserver.BLOCK_STATS, statline.split()))
         return data
 
