@@ -10,6 +10,7 @@ from Queue import Queue, Empty
 from threading import Thread
 import time
 import unittest
+import util
 
 class BaseObserverNameTestCase(unittest.TestCase):
     """
@@ -136,3 +137,26 @@ class StorageObserverTest(unittest.TestCase):
             self.verify(data)
         self.obs.stop()
         t.join()
+
+class ProcessObserverTest(unittest.TestCase):
+    """
+    A ProcessObserver grabs stats for a process as identified by a pid.
+    """
+    def setUp(self):
+        """Get the PID of the first sshd process found."""
+        name = 'sshd'
+        pid = util.pids_by_name(name)[0]
+        self.obs = observer.ProcessObserver(name, pid)
+        self.q = Queue()
+        
+    def test_1_second_iter(self):
+        arg = { 'outq' : self.q, 'count': 5 }
+        t = Thread(target=self.obs.run, kwargs=arg)
+        t.start()
+        data = {}
+        while data is not self.obs._end_data:
+            data = self.q.get(timeout=2)
+            print data
+        self.obs.stop()
+        t.join()
+        
