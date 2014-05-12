@@ -1,3 +1,11 @@
 #!/bin/bash
+#
+# Run all tests in the test directory.
+#
+# If you want to run a single TestCase class from e.g. test_observer.py:
+#
+#   python -m unittest test_observer.ProcessObserverTest
+#
+# You need to set PYTHONPATH to find your modules
 
 python2.7 -m unittest discover -s test
