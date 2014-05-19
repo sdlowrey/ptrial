@@ -1,10 +1,8 @@
-# Max line length = 100                                                                            1
-#        1         2         3         4         5         6         7         8         9         0
-#234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
-#
-# Use the 'runtest' command from the top-level directory.
+"""
+Test for the ObserverBase class and its subclasses.
 
-import json
+Use the 'runtest' command from the top-level directory.
+"""
 import observer
 from Queue import Queue, Empty
 from threading import Thread
