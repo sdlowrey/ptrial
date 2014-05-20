@@ -19,14 +19,14 @@ class BaseObserverNameTestCase(unittest.TestCase):
         obs = observer.ObserverBase(name)
         self.assertEqual(obs.name, name)
         del obs
-        
+
     def test_no_name(self):
         self.assertRaises(TypeError, observer.ObserverBase)
 
     def test_empty_name(self):
         name = ''
         self.assertRaises(observer.ObserverError, observer.ObserverBase, name)
-        
+
     def test_numeric_name(self):
         name = 1234
         obs = observer.ObserverBase(name)
@@ -36,9 +36,9 @@ class ObserverDataTestCase(unittest.TestCase):
     """
     The BaseObserver can "get" a test datapoint.  The timestamp is now and the data is a
     dict with a single test element.  
-    
+
     The TestLoopServer observer continually returns test data.
-    
+
     Callers would not normally access the internal datapoint directly, but we can for testing. (The
     data is returned to the caller in a coded format for serialization.)
     """
@@ -47,7 +47,7 @@ class ObserverDataTestCase(unittest.TestCase):
         self.metric_name = 'test'
         self.observer_name = 'testlooper'
         self.datarange = range(1,999999)
-        
+
     def verify(self, data):
         """
         Check a test data dictionary.  Walk through all the keys (timestamps) and then verify the
@@ -62,7 +62,7 @@ class ObserverDataTestCase(unittest.TestCase):
                 for metric in data[k].keys():
                     self.assertEqual(metric, self.metric_name)
                     self.assertIn(data[k][metric], self.datarange)
-        
+
     def test_ascii_time_format(self):
         obs = observer.ObserverBase('dummy', time_format=observer.ASCII_TIME)
         obs.get_datapoint()
@@ -71,7 +71,7 @@ class ObserverDataTestCase(unittest.TestCase):
         del obs._datapoint['name']
         decade = int(obs._datapoint.keys()[0][:3])
         self.assertEqual(decade, 201)
-        
+
     def test_interval_data_count(self):
         """
         Test LoopObserver using a count limit.
@@ -111,7 +111,7 @@ class StorageObserverTest(unittest.TestCase):
         self.obs = observer.StorageObserver(name)
         self.obs.set_device('/var')
         self.q = Queue()
-        
+
     def verify(self, data):
         if data is self.obs._end_data:
             return
@@ -124,7 +124,7 @@ class StorageObserverTest(unittest.TestCase):
                 for metric in data[k].keys():
                     self.assertIn(metric, self.obs.BLOCK_STATS)
                     self.assertGreaterEqual(data[k][metric], 0)
-        
+
     def test_iter_2(self):
         arg = { 'outq': self.q, 'count': 2 }
         t = Thread(target=self.obs.run, kwargs=arg)
@@ -133,6 +133,7 @@ class StorageObserverTest(unittest.TestCase):
         while data is not self.obs._end_data:
             data = self.q.get(timeout=2)
             self.verify(data)
+            print data
         self.obs.stop()
         t.join()
 
@@ -146,7 +147,7 @@ class ProcessObserverTest(unittest.TestCase):
         pid = util.pids_by_name(name)[0]
         self.obs = observer.ProcessObserver(name, pid)
         self.q = Queue()
-        
+
     def test_1_second_iter(self):
         arg = { 'outq' : self.q, 'count': 5 }
         t = Thread(target=self.obs.run, kwargs=arg)
@@ -157,4 +158,3 @@ class ProcessObserverTest(unittest.TestCase):
             print data
         self.obs.stop()
         t.join()
-        
