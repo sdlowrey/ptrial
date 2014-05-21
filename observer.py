@@ -13,10 +13,6 @@ TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
 INTEGER_TIME = 1
 ASCII_TIME   = 2
 
-JSON_DATA   = 1
-PYTHON_DATA = 2
-CSV_DATA    = 3
-
 # Private constants
 _INVALID_ARG      = 'Argument {} is an _INVALID type'
 _INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
@@ -274,55 +270,3 @@ class ProcessObserver(LoopObserver):
             stats.append(stat_list[i])
         data = dict(zip(ProcessObserver.TASK_STAT_NAMES, stats))
         return data
-    
-class ObservationManager(object):
-    def __init__(self, fmt):
-        self.set_data_format(fmt)
-
-    def set_data_format(self, fmt):
-        """
-        Change the data format on the fly.
-        """
-        encoder = {
-            JSON_DATA: self._json_data,
-            PYTHON_DATA: self._python_data,
-            CSV_DATA: self._csv_data
-        }
-        self._encode = encoder[fmt]
-        
-    def store(self, data):
-        print self._encode(data)
-    
-    def _csv_data(self, data):
-        """
-        Reformat a datapoint as a CSV string.
-        
-        Because timestamp is a key (and thus constantly changes) the writers in the Python csv
-        module aren't of much use.  It's easy enough to handle here, though.
-        """
-        # the trick here is to find the timestamp key
-        for k in data.keys():
-            if type(k) is int:
-                ts = k
-                
-        print 'file?: {}'.format(data['name'])
-        line = str(ts)
-        for k in data[ts].keys():
-            line = line + ',' + str(data[ts][k])
-        return line
-    
-    def _json_data(self, data):
-        return json.dumps(data)
-    
-    def _python_data(self, data):
-        return data
-
-if __name__ == '__main__':
-    data = {'name': 'buddy', 12345: {'metric1': 1231, 'metric2': 989}}
-    
-    om = ObservationManager(JSON_DATA)
-    om.store(data)
-    om.set_data_format(PYTHON_DATA)
-    om.store(data)
-    om.set_data_format(CSV_DATA)
-    om.store(data)    
