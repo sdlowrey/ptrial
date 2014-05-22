@@ -33,6 +33,14 @@ class Encoder(object):
         """
         return self._encode(data)
     
+    def encode_header(self):
+        """Encode a header line for text files.  For CSV, this line will be a comma-separated
+        list of keys from _key_order.
+        """
+        if self._key_order:
+            return ','.join(self._key_order)
+        return 'Header not implemented'
+
     def set_format(self, fmt):
         """Change the data encoding on-the-fly.
         
