@@ -81,9 +81,16 @@ class ObserverBase(object):
     def _integer_time(self):
         return int(time.time())    
 
+class TestObserver(ObserverBase):
+    """
+    A one-shot observer that generates a single fake datapoint.
+    """
+    def _read_source(self):
+        return { 'thing1' : random.randint(1,999999), 'thing2': random.randint(1,999999)}
+
 class LoopObserver(ObserverBase):
     """
-    Record observations at regular intervals and place data into a queue.
+    Make observations at regular intervals and place data into a queue.
     
     Objects of this type should run in a thread. The caller creates the queue passes it to the
     observer during init:

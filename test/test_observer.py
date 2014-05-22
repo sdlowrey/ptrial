@@ -102,6 +102,15 @@ class ObserverDataTestCase(unittest.TestCase):
         obs.stop()
         obs_thread.join()
 
+    def test_one_shot(self):
+        """
+        Test a single datapoint fetch with default integer time -- no queues.
+        """
+        obs = observer.TestObserver('utest')
+        dp = obs.get_datapoint()
+        # stupid test but its a simple sanity check
+        self.assertEqual(dp['name'], 'utest')
+        
 class StorageObserverTest(unittest.TestCase):
     """
     A StorageObserver grabs stats for a storage device for a directory/partition.

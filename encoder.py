@@ -14,14 +14,16 @@ class KeyOrderError(Exception):
 NO_KEY_ORDER = 'The key order must be defined for CSV encoding'
 
 class Encoder(object):
-    def __init__(self, fmt=PYTHON_DATA):
+    def __init__(self, fmt=PYTHON_DATA, key_order=None):
         """Set the encoder format.  Options are JSON_DATA, PYTHON_DATA, and CSV_DATA.
         
         Args:
           fmt: data encoding format; default is PYTHON_DATA (no encoding).
+
+          key_order: sequence of key names used to select and order CSV output
         """
         self.set_format(fmt)
-        self._key_order = None
+        self._key_order = key_order
 
     def encode(self, data):
         """Encode data in the format chosen in the last set_format() call.
@@ -43,15 +45,7 @@ class Encoder(object):
             CSV_DATA: self._csv_data
         }
         self._encode = encoder[fmt]
-        
-    def set_order(self, keys):
-        """Set the key order for flat output formats that do not show keys (e.g., CSV)
-        
-        Args:
-          keys: a sequence of (ordered) key names
-        """
-        self._key_order = keys
-    
+
     def _csv_data(self, data):
         """
         Reformat a datapoint as a CSV string.  Only values from the timestamp key are included.  
