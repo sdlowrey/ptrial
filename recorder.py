@@ -1,7 +1,6 @@
 """
 Record time series data to various kinds of storage facilities.
 """
-import encoder
 
 class RecorderError(Exception):
     pass
@@ -9,21 +8,22 @@ class RecorderError(Exception):
 class TextFile(object):
     """
     Record data in a text file.
+    
+    An optional header string can be provided to write useful things like field names, etc.
     """
-    def __init__(self, file_obj, enc):
+    def __init__(self, file_obj, header=None):
         """
         Args:
         
           file_obj: file object that is open and writable
-          
-          enc: Encoder object that is configured to format any textual data
+          header: string to write before writing data
         """
         self._file = file_obj
-        self._enc = enc
-        self.header(self._enc.encode_header())
-            
-    def header(self, data):
-        self._file.write('{}\n'.format(data))
+        if header:
+            self.store(header)
         
     def store(self, data):
-        self._file.write('{}\n'.format(self._enc.encode(data)))
+        """
+        Write the data with a trailing newline.
+        """
+        self._file.write('{}\n'.format(data))

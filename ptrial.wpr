@@ -57,5 +57,4 @@ proj.directory-list = [{'dirloc': loc('.'),
                         'watch_for_changes': True}]
 proj.file-type = 'shared'
 testing.auto-test-file-specs = [('glob',
-                                 '/home/slowrey/projects/ptrial/test/test_*.'\
-                                 'py')]
+                                 'test_*.py')]
