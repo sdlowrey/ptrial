@@ -1,4 +1,4 @@
-
+from collections import OrderedDict
 import json
 import os.path
 from Queue import Queue
@@ -8,7 +8,12 @@ import string
 import subprocess
 import time
 
-# Public constants
+# Public data format constants
+JSON_DATA   = 1
+PYTHON_DATA = 2
+CSV_DATA    = 3
+
+# Public time format constants
 TIME_STRING_FORMAT  = '%Y-%m-%d %H:%M:%S'
 INTEGER_TIME = 1
 ASCII_TIME   = 2
@@ -35,13 +40,20 @@ class ObserverBase(object):
       name: name of the observer
     """
     
-    def __init__(self, name, time_format=INTEGER_TIME):
+    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
         """
         Check the name and determine the time formatting function to use.
         
+        Timestamps can be encoded as seconds-from-epoch (integer) or string (Y-m-d H:M:S).  Use
+        the INTEGER_TIME and ASCII_TIME constants to choose.  The default is INTEGER_TIME.
+        
+        Data can be returned as a Python dictionary, JSON object, or CSV text (one line).  Use the
+        *_DATA constants to choose.  CSV data will be returned in 
+        
         Args:
           name: the name of this observer; must be a string or have a string representation
-          time_enc: optional encoding format integer or ASCII; use TIME_* constants.
+          time_format: encoding format for timestamps
+          data_format: encoding format for data collections
         """
         if not name:
             raise ObserverError(_INVALID_NAME)
@@ -49,17 +61,41 @@ class ObserverBase(object):
         self._time = self._integer_time
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
+        encoder = {
+            JSON_DATA: self._json_data,
+            PYTHON_DATA: self._python_data,
+            CSV_DATA: self._csv_data
+        }
+        self._encode = encoder[data_format]
 
-        self._source = None
+        # Field (metric) names and their optional string indexes must be defined in subclasses.
+        self._field_names = ()
+        self._field_indexes = ()
         self._datapoint = None
             
     def get_datapoint(self):
         """
-        Retrieve a datapoint. Data format depends on self._data_format.
+        Retrieve a datapoint with the correct encoding applied.
         """
         self._datapoint = { 'name': self.name, self._time() : self._read_source() }
+        return self._encode(self._datapoint)
+    
+    @property
+    def datapoint(self):
+        """The current datapoint as a dictionary object.
+        
+        This property's initial purpose is to enhance the testability of Observer objects.
+        """
         return self._datapoint
 
+    @property
+    def field_names(self):
+        """A tuple of data field (metric) names.  
+        
+        Field names are equivalent to the keys for individual metrics when using Python or JSON 
+        datapoint formats."""
+        return self._field_names
+    
     def _read_source(self):
         """
         Read data from the observed source.
@@ -73,7 +109,7 @@ class ObserverBase(object):
         Returns:
           A dictionary of metric names and values.  The value can be any object type.
         """
-        pass
+        raise NotImplementedError
 
     def _ascii_time(self):
         return time.strftime(TIME_STRING_FORMAT)
@@ -81,12 +117,62 @@ class ObserverBase(object):
     def _integer_time(self):
         return int(time.time())    
 
+    def _csv_data(self, data):
+        """
+        Reformat data as a CSV string
+        
+        Output consists only of the timestamp and the item values.  The timestamp is 
+        always the first field.  Because the data is stored in an OrderedDict, the values are 
+        returned in the order of the keys as they are defined in the subclass *_DATA tuples. 
+        
+        Args:
+          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        """
+        # (Because timestamp is a key (and thus constantly changes) the writers in the Python csv
+        # module aren't of much use.  It's not a problem here, but consider making timestamp a value
+        # with its own key in the future.)
+                
+        # find the timestamp key
+        for k in data.keys():
+            if type(k) is int:
+                ts = k
+                
+        line = str(ts)
+        for k in self._field_names:
+            line = line + ',' + str(data[ts][k])
+        return line
+    
+    def _json_data(self, data):
+        """
+        Reformat data as a JSON object 
+        
+        Args:
+          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        """
+        return json.dumps(data)
+    
+    def _python_data(self, data):
+        """
+        No formatting done.  Simply return the data as-is. 
+        
+        Args:
+          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        """
+        return data
+    
 class TestObserver(ObserverBase):
     """
     A one-shot observer that generates a single fake datapoint.
     """
+    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
+        super(TestObserver, self).__init__(name, time_format, data_format)
+        self._field_names = ('thing1', 'thing2')
+
     def _read_source(self):
-        return { 'thing1' : random.randint(1,999999), 'thing2': random.randint(1,999999)}
+        data = OrderedDict()
+        for thing in self._field_names:
+            data[thing] =  random.randint(1,999999)
+        return data
 
 class LoopObserver(ObserverBase):
     """
@@ -131,24 +217,27 @@ class LoopObserver(ObserverBase):
 class TestLoopObserver(LoopObserver):
     """
     A loop server that generates random data for testing.
-    
-    Does not require open_source or close_source overrides.
     """
+    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
+        super(TestLoopObserver, self).__init__(name, time_format, data_format)
+        self._field_names = ('test')
+        
     def _read_source(self):
-        return { 'test' : random.randint(1,999999) }
+        data = { self._field_names[0] : random.randint(1,999999) }
+        return data
 
 class StorageObserver(LoopObserver):
     """
     Get the block I/O stats for a device.
     """
     # https://www.kernel.org/doc/Documentation/iostats.txt
-    BLOCK_STATS = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 'wr_blk',
-                   'wr_tm', 'io_prog', 'io_tm','io_tmw')
     
-    def __init__(self, name, dev=None, time_format=INTEGER_TIME):
-        super(StorageObserver, self).__init__(name, time_format)
+    def __init__(self, name, dev=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
+        super(StorageObserver, self).__init__(name, time_format, data_format)
         self._device = dev
         self._path = None
+        self._field_names = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 
+                             'wr_blk', 'wr_tm', 'io_prog', 'io_tm', 'io_tmw')
         
     def set_device(self, path):
         """
@@ -166,7 +255,6 @@ class StorageObserver(LoopObserver):
         
     def _get_partition_dev(self, path):
         """
-
         Get the partition device associated with a path
         """
         # build a dict of mountpoints and their device names
@@ -204,7 +292,7 @@ class StorageObserver(LoopObserver):
                                                       self._device)
         with open(devpath) as f:
             statline = f.readline().strip()
-        data = dict(zip(StorageObserver.BLOCK_STATS, statline.split()))
+        data = OrderedDict(zip(self._field_names, statline.split()))
         return data
 
 class ProcessObserver(LoopObserver):
@@ -224,7 +312,7 @@ class ProcessObserver(LoopObserver):
       
       majflt    The number of major faults the process has made which have required loading a
                 memory page from disk.
-      
+          def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
       cmajflt   The number of major faults that the process's waited-for children have made.
 
       utime     Amount of time that this process has been scheduled in user mode, measured in
@@ -254,14 +342,14 @@ class ProcessObserver(LoopObserver):
     See http://man7.org/linux/man-pages/man5/proc.5.html for complete details.
     """
     
-    # To add another statistic, update these tuples.  The index numbers are available in the
-    # proc(5) man page.
-    TASK_STAT_INDEX = (3, 10, 11, 12, 13, 14, 15, 18, 20, 24)
-    TASK_STAT_NAMES = ('state', 'minflt', 'cminflt', 'majflt', 'cmajflt', 'utime', 'stime',
-                       'priority', 'nthreads', 'rss')
+    # To add another statistic, update _field_* tuples.  The index numbers are available in the
+    # proc(5) man page.  Remember zero-based: subtract 1 to match indexes shown in man page.
     
     def __init__(self, name, pid=None, time_format=INTEGER_TIME):
         super(ProcessObserver, self).__init__(name, time_format)
+        self._field_names = ('state', 'minflt', 'cminflt', 'majflt', 'cmajflt', 'utime', 'stime',
+                             'priority', 'nthreads', 'rss')
+        self._field_indexes = (2, 9, 10, 11, 12, 13, 14, 17, 19, 23)
         self._pid = pid
         
     def _read_source(self):
@@ -273,7 +361,7 @@ class ProcessObserver(LoopObserver):
             statline = f.readline().strip()
         stat_list =  statline.split()
         stats = []
-        for i in ProcessObserver.TASK_STAT_INDEX:
+        for i in self._field_indexes:
             stats.append(stat_list[i])
-        data = dict(zip(ProcessObserver.TASK_STAT_NAMES, stats))
+        data = OrderedDict(zip(self._field_names, stats))
         return data
