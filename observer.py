@@ -220,7 +220,7 @@ class TestLoopObserver(LoopObserver):
     """
     def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
         super(TestLoopObserver, self).__init__(name, time_format, data_format)
-        self._field_names = ('test')
+        self._field_names = ('test',)
         
     def _read_source(self):
         data = { self._field_names[0] : random.randint(1,999999) }

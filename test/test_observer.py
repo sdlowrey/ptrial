@@ -34,13 +34,10 @@ class BaseObserverNameTestCase(unittest.TestCase):
 
 class ObserverDataTestCase(unittest.TestCase):
     """
-    The BaseObserver can "get" a test datapoint.  The timestamp is now and the data is a
+    The TestObserver can return a test datapoint.  The timestamp is now and the data is a
     dict with a single test element.  
 
     The TestLoopServer observer continually returns test data.
-
-    Callers would not normally access the internal datapoint directly, but we can for testing. (The
-    data is returned to the caller in a coded format for serialization.)
     """
 
     def setUp(self):
@@ -64,7 +61,7 @@ class ObserverDataTestCase(unittest.TestCase):
                     self.assertIn(data[k][metric], self.datarange)
 
     def test_ascii_time_format(self):
-        obs = observer.ObserverBase('dummy', time_format=observer.ASCII_TIME)
+        obs = observer.TestObserver('dummy', time_format=observer.ASCII_TIME)
         obs.get_datapoint()
         # delete the 'name' attribute, leaving only the timestamp key/value
         # just check the decade by looking at the first 3 characters of the key
@@ -131,7 +128,7 @@ class StorageObserverTest(unittest.TestCase):
             else:
                 self.assertAlmostEqual(k, now)
                 for metric in data[k].keys():
-                    self.assertIn(metric, self.obs.BLOCK_STATS)
+                    self.assertIn(metric, self.obs.field_names)
                     self.assertGreaterEqual(data[k][metric], 0)
 
     def test_iter_2(self):
