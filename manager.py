@@ -26,21 +26,16 @@ class NodeManager(object):
     Args:
       context: the TrialContext object for this test
     """
-    def __init__(self, context):
-        self._get_node_context()
-        self._get_app_context()
+    def __init__(self, trial_ctxt):
+        self._trial_ctxt = trial_ctxt
+        self._hw_ctxt = context.HardwareContext()
+        self._os_ctxt = context.OperatingSystemContext()
+        self._init_app_context()        
         
-    def _get_node_context(self):
+    def _init_app_context(self):
         """
-        Capture system configuration items needed for control of this process.
-        """
-        self._hw_cfg = context.HardwareContext()
-        self._os_cfg = context.OperatingSystemContext()
-        
-        
-    def _get_app_context(self):
-        """
-        Capture application-specific configuration
+        Capture application-specific context.  This should be overridden in subclasses
+        that manage application nodes.
         """
         pass
         
