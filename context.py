@@ -1,5 +1,5 @@
 """
-Containers for various read-only classes of configuration data.
+Read-only containers for static information about the system.
 """
 import collections
 import os
@@ -12,17 +12,20 @@ KERNEL = 'kernel'
 CPU_MODEL = 'cpu_model'
 CPU_NCORES = 'cpu_ncores'
 
-class ConfigurationBase(collections.Mapping):
+class ContextBase(collections.Mapping):
     """
     A base class that implements an immutable mapping container.
     
-    The _populate method is overridden by subclasses to create items in the map.
+    The interface is the same as a dictionary with the addition of attribute-style (dot) access.
     """
     def __init__(self):
         self._items = {}
         self._populate()
         
     def __getattr__(self, key):
+        """
+        Add dot notation as an alternative to bracketed key names. 
+        """
         return self._items[key]
     
     def __getitem__(self, key):
@@ -35,9 +38,12 @@ class ConfigurationBase(collections.Mapping):
         return len(self._items)
     
     def _populate(self):
+        """
+        Populate the collection.  Must be overridden in subclasses.
+        """
         raise NotImplemented
-    
-class OperatingSystemConfiguration(ConfigurationBase):
+            
+class OperatingSystemContext(ContextBase):
     """
     General OS attributes.  
     """
@@ -46,13 +52,13 @@ class OperatingSystemConfiguration(ConfigurationBase):
         items[HOSTNAME] = socket.gethostname()
         items[KERNEL] = os.uname()[2]
 
-class HardwareConfigurationError(Exception):
+class HardwareContextError(Exception):
     """
-    An error occurred while getting the hardware configuration
+    An error occurred while getting the hardware context
     """
     pass
 
-class HardwareConfiguration(ConfigurationBase):
+class HardwareContext(ContextBase):
     """
     General hardware attributes.
     """
@@ -63,7 +69,7 @@ class HardwareConfiguration(ConfigurationBase):
         Allow the caller to specify test files.
         """
         self._cpu_file = cpufile
-        super(HardwareConfiguration, self).__init__()
+        super(HardwareContext, self).__init__()
 
     def _populate(self):
         self._cpu_info()
@@ -88,4 +94,4 @@ class HardwareConfiguration(ConfigurationBase):
         self._items[CPU_NCORES] = int(wanted_attrs['cpu cores'])
 
     def _err_missing_value(self, key):
-        return 'value for key "{}" not found'.format(key)
+            return 'value for key "{}" not found'.format(key)
