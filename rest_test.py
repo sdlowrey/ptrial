@@ -44,19 +44,14 @@ def diskstats(environ, start_response):
     start_response('200 OK', [ ('Content-type', 'application/json') ])
     params = environ['params']
     part = params.get('part')
-    out = []
     while True:
         try:
             data = q.get(block=False)
-            print "got data"
+            yield data.encode('utf-8')
+            q.task_done()
         except Queue.Empty:
             print "queue is empty"
             break
-        out.append(data)
-        q.task_done()
-            
-    resp = json.dumps(out)
-    yield resp.encode('utf-8')
     
 def ctrl(environ, start_response):
     global run

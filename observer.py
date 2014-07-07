@@ -145,10 +145,10 @@ class ObserverBase(object):
     
     def _json_data(self, data):
         """
-        Reformat data as a JSON object 
+        Reformat datapoint as a JSON-formatted string 
         
         Args:
-          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+          data: a Python dictionary
         """
         return json.dumps(data)
     
