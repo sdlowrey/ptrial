@@ -207,6 +207,7 @@ class LoopObserver(ObserverBase):
         while self._run and count > 0:
             if counting:
                 count -= 1
+            # FIXME: caller should  set maxsize, so set timeout and handle Queue.Full (data gap)
             outq.put(self.get_datapoint())
             time.sleep(interval)
         outq.put(self._end_data)
@@ -234,8 +235,9 @@ class StorageObserver(LoopObserver):
     
     def __init__(self, name, dev=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
         super(StorageObserver, self).__init__(name, time_format, data_format)
-        self._device = dev
+        self._device = dev # FIXME: this is messed up; device path needs to be done in init
         self._path = None
+        # FIXME: move data structure definition to a common loc so storage can used it too
         self._field_names = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 
                              'wr_blk', 'wr_tm', 'io_prog', 'io_tm', 'io_tmw')
         
