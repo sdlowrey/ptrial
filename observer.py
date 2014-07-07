@@ -35,13 +35,15 @@ class ObserverBase(object):
     Record observations obtained from a data source.  
     
     This is a base class that provides simple read-once functionality. Subclasses should override
-    the *_source methods.
+    the read_source method.
     
     Attributes:
       name: name of the observer
+      
+      datapoint: the most recent datapoint
     """
     
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
+    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
         """
         Check the name and determine the time formatting function to use.
         
@@ -52,9 +54,15 @@ class ObserverBase(object):
         *_DATA constants to choose.  CSV data will be returned in 
         
         Args:
+
           name: the name of this observer; must be a string or have a string representation
+
           time_format: encoding format for timestamps
+
           data_format: encoding format for data collections
+
+          time_as_key: timestamp is a key (data map is the value) for use in column family DBs
+                       (see http://www.datastax.com/dev/blog/advanced-time-series-with-cassandra)
         """
         if not name:
             raise ObserverError(_INVALID_NAME)
@@ -73,12 +81,16 @@ class ObserverBase(object):
         self._field_names = ()
         self._field_indexes = ()
         self._datapoint = None
+        self._time_as_key = time_as_key
             
     def get_datapoint(self):
         """
         Retrieve a datapoint with the correct encoding applied.
         """
-        self._datapoint = { 'name': self.name, self._time() : self._read_source() }
+        if self._time_as_key:
+            self._datapoint = { 'name': self.name, self._time() : self._read_source() }
+        else:
+            self._datapoint = {'name': self.name, 'time': self._time(), 'data': self._read_source()}
         return self._encode(self._datapoint)
     
     @property
@@ -165,8 +177,8 @@ class TestObserver(ObserverBase):
     """
     A one-shot observer that generates a single fake datapoint.
     """
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
-        super(TestObserver, self).__init__(name, time_format, data_format)
+    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
+        super(TestObserver, self).__init__(name, time_format, data_format, time_as_key)
         self._field_names = ('thing1', 'thing2')
 
     def _read_source(self):

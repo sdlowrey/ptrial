@@ -108,6 +108,13 @@ class ObserverDataTestCase(unittest.TestCase):
         # stupid test but its a simple sanity check
         self.assertEqual(dp['name'], 'utest')
         
+    def test_timestamp_as_value(self):
+        obs = observer.TestObserver('ts_test', time_as_key=False)
+        dp = obs.get_datapoint()
+        # stupid test but its a simple sanity check
+        self.assertIn('time', dp)
+        self.assertIsInstance(dp['time'], int)
+        
 class StorageObserverTest(unittest.TestCase):
     """
     A StorageObserver grabs stats for a storage device for a directory/partition.
