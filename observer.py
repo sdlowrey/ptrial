@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import datetime
 import json
 import os.path
 from Queue import Queue
@@ -197,13 +198,20 @@ class LoopObserver(ObserverBase):
           interval: sleep interval in seconds between datapoints; default is 1 second
           count: number of datapoints to read; defaults to 0 (no limit)
         """
+        self._queue = outq
+        self._interval = interval
+        self._count = count
         self._run = True
+        self._start_time = datetime.datetime.now()
+
+        # TODO: can probably throw out this test-only counting mechanism
         counting = False
         if count > 0:
             counting = True
         else:
             count = 1
         self._end_data = object()
+
         while self._run and count > 0:
             if counting:
                 count -= 1
@@ -211,6 +219,18 @@ class LoopObserver(ObserverBase):
             outq.put(self.get_datapoint())
             time.sleep(interval)
         outq.put(self._end_data)
+        
+    def status(self):
+        """
+        Report on queue size and run time.
+        """
+        now = datetime.datetime.now()
+        state = {
+            'interval': self._interval,
+            'qsize': self._queue.qsize(),
+            'uptime': str(now - self._start_time),
+        }
+        return state
 
     def stop(self):
         self._run = False

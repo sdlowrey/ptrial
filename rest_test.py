@@ -44,7 +44,6 @@ def diskstats(environ, start_response):
     start_response('200 OK', [ ('Content-type', 'application/json') ])
     params = environ['params']
     part = params.get('part')
-    end = object()  #stupid hack
     out = []
     while True:
         try:
@@ -69,7 +68,15 @@ def ctrl(environ, start_response):
         run = False
         resp = 'stopping'
     yield resp.encode('utf-8')
-        
+
+def status(environ, start_response):
+    start_response('200 OK', [ ('Content-type', 'application/json') ])
+    params = environ['params']
+    # this would be used to get the right queue, but only one for now
+    cmd = params.get('name')
+    resp = json.dumps(obs.status())
+    yield resp.encode('utf-8')
+    
 if __name__ == '__main__':
     from resty import PathDispatcher
     from wsgiref.simple_server import make_server
@@ -80,8 +87,10 @@ if __name__ == '__main__':
     dispatcher.register('GET', '/localtime', localtime)
     dispatcher.register('GET', '/diskstats', diskstats)
     dispatcher.register('GET', '/ctrl', ctrl)
-    
+    dispatcher.register('GET', '/status', status)
     # spin up the Observer thread for disk stats
+    # these globals will be rolled into objects later... or something like that
+    global obs
     obs = observer.StorageObserver('var partition', data_format=observer.JSON_DATA)
     obs.set_device('/var')
     global q
@@ -89,7 +98,7 @@ if __name__ == '__main__':
     t = Thread(target=obs.run, kwargs={'outq': q})
     t.start()
     time.sleep(5) # get some data in the queue
-    
+
     # Launch a basic server
     global run
     run = True
