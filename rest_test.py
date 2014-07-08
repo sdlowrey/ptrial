@@ -55,22 +55,31 @@ def diskstats(environ, start_response):
     
 def ctrl(environ, start_response):
     global run
-    start_response('200 OK', [ ('Content-type', 'application/json') ])
+    start_response('200 OK', [ ('Content-type', 'text/plain') ])
     params = environ['params']
     cmd = params.get('cmd')
     resp = 'unknown command'
     if cmd == 'shutdown':
         run = False
         resp = 'stopping'
+    elif cmd == 'status':
+        resp = json.dumps(obs.status())
     yield resp.encode('utf-8')
-
-def status(environ, start_response):
-    start_response('200 OK', [ ('Content-type', 'application/json') ])
-    params = environ['params']
-    # this would be used to get the right queue, but only one for now
-    cmd = params.get('name')
-    resp = json.dumps(obs.status())
-    yield resp.encode('utf-8')
+    
+def create_observer(environ, start_response):
+    """
+    Create an observer.
+    
+    observer?type=TYPE,
+    """
+    start_response('200 OK', [ ('Content-type', 'text/plain') ])
+    #params = environ['params']
+    yield 'ENVIRON:\n'
+    for k, v in environ.iteritems():
+        yield 'key: {}  value: {}\n'.format(k, str(environ[k]))
+    #yield 'WSGI.INPUT:\n'
+    #for k, v in params.iteritems():
+        #yield 'key: {}  value: {}\n'.format(k, str(params[k]))
     
 if __name__ == '__main__':
     from resty import PathDispatcher
@@ -82,7 +91,8 @@ if __name__ == '__main__':
     dispatcher.register('GET', '/localtime', localtime)
     dispatcher.register('GET', '/diskstats', diskstats)
     dispatcher.register('GET', '/ctrl', ctrl)
-    dispatcher.register('GET', '/status', status)
+    dispatcher.register('PUT', '/observer', create_observer)
+    
     # spin up the Observer thread for disk stats
     # these globals will be rolled into objects later... or something like that
     global obs
