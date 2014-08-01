@@ -1,7 +1,7 @@
 """
-This is a vendor-specific configuration class that is maintained separately from config.py
+EM7-specific configuration 
 """
-import config
+from ptrial.context.core import ContextBase
 from ConfigParser import ConfigParser
 
 # pathnames
@@ -19,13 +19,13 @@ DBDIR = 'dbdir'
 TYPE = 'model_type'
 BASE_VERSION = 'basever'
     
-class Em7ConfigurationError(Exception):
+class EM7ContextError(Exception):
     """
     An error occurred while getting the EM7 configuration
     """
     pass
 
-class Em7Configuration(config.ConfigurationBase):
+class EM7Context(ContextBase):
     """
     A mapping of select "local only" EM7 configuration attributes.
     """
@@ -38,7 +38,7 @@ class Em7Configuration(config.ConfigurationBase):
         """
         self._config_path = config_path
         self._rel_path = rel_path
-        super(Em7Configuration, self).__init__()
+        super(EM7Context, self).__init__()
         
     def _populate(self):
         items = self._items
