@@ -1,9 +1,8 @@
-# From Python Cookbook, 3rd ed.
-# modifications for time series use
 
 import json
-import observer
-import Queue
+from ptrial.observer.core import JSON_DATA, CSV_DATA
+from ptrial.observer.kernel import StorageObserver
+from Queue import Queue
 from threading import Thread
 import time
 
@@ -40,14 +39,20 @@ def localtime(environ, start_response):
     yield resp.encode('utf-8')
 
 def diskstats(environ, start_response):
-    global q
-    start_response('200 OK', [ ('Content-type', 'application/json') ])
+    """
+    Generate a response using all data in the queue.
+    """
+    # hardcoded to CSV delimited by newline with headers on first line
+    # TODO: JSON should create a single object with all queue items as records?
+    global obs, q
+    start_response('200 OK', [ ('Content-type', 'text/csv') ])
     params = environ['params']
-    part = params.get('part')
+    part = params.get('part')  # not sure what this is...
+    yield obs.field_names + '\n'
     while True:
         try:
             data = q.get(block=False)
-            yield data.encode('utf-8')
+            yield data.encode('utf-8') + '\n'
             q.task_done()
         except Queue.Empty:
             print "queue is empty"
@@ -82,6 +87,8 @@ def create_observer(environ, start_response):
         #yield 'key: {}  value: {}\n'.format(k, str(params[k]))
     
 if __name__ == '__main__':
+    # WSGI path dispatcher recipe from Python Cookbook, 3rd ed.
+    # modifications for time series use
     from resty import PathDispatcher
     from wsgiref.simple_server import make_server
 
@@ -89,18 +96,16 @@ if __name__ == '__main__':
     dispatcher = PathDispatcher()
     dispatcher.register('GET', '/hello', hello_world)
     dispatcher.register('GET', '/localtime', localtime)
-    dispatcher.register('GET', '/diskstats', diskstats)
+    dispatcher.register('GET', '/stats/disk', diskstats)
     dispatcher.register('GET', '/ctrl', ctrl)
     dispatcher.register('PUT', '/observer', create_observer)
     
     # spin up the Observer thread for disk stats
     # these globals will be rolled into objects later... or something like that
-    global obs
-    obs = observer.StorageObserver('var partition', data_format=observer.JSON_DATA)
-    obs.set_device('/var')
-    global q
-    q = Queue.Queue()
-    t = Thread(target=obs.run, kwargs={'outq': q})
+    global obs, q
+    q = Queue()
+    obs = StorageObserver('var partition', q, '/var', data_format=CSV_DATA)
+    t = Thread(target=obs.run)
     t.start()
     time.sleep(5) # get some data in the queue
 
@@ -113,11 +118,11 @@ if __name__ == '__main__':
         httpd.handle_request()
     # throw out the rest of the items in the queue and stop the observer thread
     obs.stop()
-    tossed = 0
+    discard = 0
     while not q.empty():
-        tossed += 1
+        discard += 1
         q.get()
         q.task_done()
-    print 'tossed {} queue items'.format(tossed)
+    print 'discarded {} queue items'.format(discard)
     q.join()
     print 'shutdown complete'
