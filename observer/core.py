@@ -69,6 +69,7 @@ class ObserverBase(object):
         self._time = self._integer_time
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
+        self._data_format = data_format
         encoder = {
             JSON_DATA: self._json_data,
             PYTHON_DATA: self._python_data,
@@ -102,11 +103,16 @@ class ObserverBase(object):
 
     @property
     def field_names(self):
-        """A tuple of data field (metric) names.  
+        """
+        The names of each of field or metric in the datapoint.  If the selected data format is CSV,
+        then the return value is a CSV string that can be used as a header.
         
         Field names are equivalent to the keys for individual metrics when using Python or JSON 
         datapoint formats."""
-        return self._field_names
+        if self._data_format is CSV_DATA:
+            return 'timestamp,' + ','.join(self._field_names)
+        else:
+            return self._field_names
     
     def _read_source(self):
         """
