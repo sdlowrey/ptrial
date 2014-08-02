@@ -1,5 +1,5 @@
 """
-Test for the base classes in the observer module
+Test for the base classes in the observer.core module
 """
 from ptrial.observer.core import (ObserverBase, ObserverError, LoopObserver,
                                    TestObserver, TestLoopObserver)
@@ -75,9 +75,8 @@ class ObserverDataTestCase(unittest.TestCase):
         Test LoopObserver using a count limit.
         """
         input_q = Queue()
-        obs = TestLoopObserver(self.observer_name)
-        args = {'outq': input_q, 'count': 3}
-        obs_thread = Thread(target=obs.run, kwargs=args)
+        obs = TestLoopObserver(self.observer_name, input_q, count=3)
+        obs_thread = Thread(target=obs.run)
         obs_thread.start()
         while True:
             data = input_q.get(timeout=Q_TIMEOUT)
@@ -92,9 +91,8 @@ class ObserverDataTestCase(unittest.TestCase):
         Test loop observer with explicit stop.  
         """
         input_q = Queue()
-        obs = TestLoopObserver(self.observer_name)
-        args = {'outq': input_q}
-        obs_thread = Thread(target=obs.run, args=(input_q,))
+        obs = TestLoopObserver(self.observer_name, input_q)
+        obs_thread = Thread(target=obs.run)
         obs_thread.start()
         time.sleep(3)  # queue up some data
         obs.stop()

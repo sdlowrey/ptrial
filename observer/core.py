@@ -1,5 +1,5 @@
 """
-The observer module contains the base Observer classes and specialized subclasses.
+The core module provides the fundamental interfaces for getting time-series data from a source.
 """
 from collections import OrderedDict
 import datetime
@@ -32,37 +32,36 @@ class ObserverError(Exception):
 
 class ObserverBase(object):
     """
-    Record observations obtained from a data source.  
-    
-    This is a base class that provides simple read-once functionality. Subclasses should override
-    the read_source method.
+    ObserverBase provides the basic interaction for datapoint processing.  It is not intended to
+    be used by client programs.  Subclasses must override the _read_source method.
+
+    Timestamps can be encoded as seconds-from-epoch (integer) or string (Y-m-d H:M:S).  Use
+    the INTEGER_TIME and ASCII_TIME constants to choose.  The default is INTEGER_TIME.
+
+    Data can be returned as a Python dictionary, JSON object, or CSV text (one line).  Use the
+    *_DATA constants to choose.  CSV data will be returned in 
+        
+    Constructor args:
+
+          name:        the name of this observer; must be a string or have a string representation
+          time_format: encoding format for timestamps
+          data_format: encoding format for data collections
+          time_as_key: timestamp is a key (data map is the value) for use in column family DBs; if
+                       set to False, then time is a value for the key 'timestamp'
+                       (see http://www.datastax.com/dev/blog/advanced-time-series-with-cassandra)
     
     Attributes:
+    
       name: name of the observer
-      
       datapoint: the most recent datapoint
+      field_names: ordered sequence of field (metric) names
+      
     """
     
     def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
         """
         Check the name and determine the time formatting function to use.
         
-        Timestamps can be encoded as seconds-from-epoch (integer) or string (Y-m-d H:M:S).  Use
-        the INTEGER_TIME and ASCII_TIME constants to choose.  The default is INTEGER_TIME.
-        
-        Data can be returned as a Python dictionary, JSON object, or CSV text (one line).  Use the
-        *_DATA constants to choose.  CSV data will be returned in 
-        
-        Args:
-
-          name: the name of this observer; must be a string or have a string representation
-
-          time_format: encoding format for timestamps
-
-          data_format: encoding format for data collections
-
-          time_as_key: timestamp is a key (data map is the value) for use in column family DBs
-                       (see http://www.datastax.com/dev/blog/advanced-time-series-with-cassandra)
         """
         if not name:
             raise ObserverError(_INVALID_NAME)
@@ -199,41 +198,37 @@ class LoopObserver(ObserverBase):
         obs = observer.LoopObserver('looper')
         thread = Thread(target=obs.run, args=(input_q,))
         thread.start()
+    Args:
+          outq: output queue for datapoints
+          interval: sleep interval in seconds between datapoints; default is 1 second
+          count: number of datapoints to read, default 0 (no limit); used for unit testing
     """
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
+    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
+                 data_format=PYTHON_DATA, time_as_key=True):
         super(LoopObserver, self).__init__(name, time_format, data_format, time_as_key)
-        self._queue = outq
+        self._queue = queue
         self._interval = interval
         self._count = count
         self._run = True
         self._start_time = datetime.datetime.now()
         self.end_data = object()  # dummy object to put in the queue to indicate EOD
         
-    def run(self, outq, interval=1, count=0):
+    def run(self):
         """
-        Continually place observed data into the queue. Reads until the stop() method is called.
+        Continually place observed data into the queue until the stop() method is called.
         If the optional count parameter is specified, read N times or until stop().
         
-        Args:
-          outq: output queue for datapoints
-          interval: sleep interval in seconds between datapoints; default is 1 second
-          count: number of datapoints to read; defaults to 0 (no limit)
+        Use this method as a run target for a Thread object.
         """
+        counting = True if self._count > 0 else False
 
-        # TODO: can probably throw out this test-only counting mechanism
-        counting = False
-        if count > 0:
-            counting = True
-        else:
-            count = 1
-
-        while self._run and count > 0:
+        while self._run and (self._count > 0 or not counting):
             if counting:
-                count -= 1
+                self._count -= 1
             # FIXME: caller should  set maxsize, so set timeout and handle Queue.Full (data gap)
-            outq.put(self.get_datapoint())
-            time.sleep(interval)
-        outq.put(self.end_data)
+            self._queue.put(self.get_datapoint())
+            time.sleep(self._interval)
+        self._queue.put(self.end_data)
         
     def status(self):
         """
@@ -254,8 +249,10 @@ class TestLoopObserver(LoopObserver):
     """
     A loop server that generates random data for testing.
     """
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
-        super(TestLoopObserver, self).__init__(name, time_format, data_format)
+    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
+                 data_format=PYTHON_DATA, time_as_key=True):
+        super(TestLoopObserver, self).__init__(name, queue, interval, count, time_format, 
+                                               data_format, time_as_key)
         self._field_names = ('test',)
         
     def _read_source(self):

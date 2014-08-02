@@ -1,10 +1,9 @@
 """
-LoopObserver subclasses that gather kernel metrics.  The source of these metrics are
-found in the special filesystems /proc and /sys.
+The observer.kernel modules gathers continuous kernel metrics.  These metrics are sourced from 
+/proc and /sys.
 """
-from ptrial.observer.core import LoopObserver
 from collections import OrderedDict
-from observer import LoopObserver, INTEGER_TIME, PYTHON_DATA
+from ptrial.observer.core import LoopObserver, INTEGER_TIME, PYTHON_DATA
 import os
 import os.path
 import subprocess
@@ -21,11 +20,12 @@ class StorageObserver(LoopObserver):
     """
     # https://www.kernel.org/doc/Documentation/iostats.txt
     
-    def __init__(self, name, dev=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
-        super(StorageObserver, self).__init__(name, time_format, data_format)
+    def __init__(self, name, queue, path=None, interval=1, count=0, time_format=INTEGER_TIME, 
+                 data_format=PYTHON_DATA, time_as_key=True):
+        super(StorageObserver, self).__init__(name, queue, interval, count, time_format, 
+                                              data_format, time_as_key)
         self._device = dev # FIXME: this is messed up; device path needs to be done in init
-        self._path = None
-        # FIXME: move data structure definition to a common loc so storage can used it too
+        self._path = self.set_device(path)
         self._field_names = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 
                              'wr_blk', 'wr_tm', 'io_prog', 'io_tm', 'io_tmw')
         
@@ -75,7 +75,7 @@ class StorageObserver(LoopObserver):
         """Get the metrics for the device and put them into a dictionary.
         """
         # Block device trees vary a little.  If the newer path doesn't work, try the older
-        # one (2.6.18 era).  If that doesn't work, open() will toss IOError.
+        # one (2.6.18 era).  If that doesn't work, open() will raise IOError.
         devpath = '/sys/block/{}/stat'.format(self._device)
         if not os.path.exists(devpath):
             devpath =  '/sys/block/{}/{}/stat'.format(self._device.rstrip(string.digits),
@@ -121,7 +121,8 @@ class ProcessObserver(LoopObserver):
                 0 (high) to 39 (low), corresponding to the user-visible nice range of -20 to 19.
                 
       rss       Resident Set Size: number of pages the process has in real memory.  This is just
-                the pages which count toward text, data, or stack space.  This does not include
+                the pages which count toward text, data, or stack name, queue, interval, count, time_format, 
+                                              data_format, time_as_keyspace.  This does not include
                 pages which have not been demand-loaded in, or which are swapped out.
 
       nthreads  Number of threads in this process.
@@ -135,8 +136,10 @@ class ProcessObserver(LoopObserver):
     # To add another statistic, update _field_* tuples.  The index numbers are available in the
     # proc(5) man page.  Remember zero-based: subtract 1 to match indexes shown in man page.
     
-    def __init__(self, name, pid=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA):
-        super(ProcessObserver, self).__init__(name, time_format)
+    def __init__(self, name, queue, pid=None, interval=1, count=0, time_format=INTEGER_TIME, 
+                 data_format=PYTHON_DATA, time_as_key=True):
+        super(ProcessObserver, self).__init__(name, queue, interval, count, time_format, 
+                                              data_format, time_as_key)
         self._field_names = ('state', 'minflt', 'cminflt', 'majflt', 'cmajflt', 'utime', 'stime',
                              'priority', 'nthreads', 'rss')
         self._field_indexes = (2, 9, 10, 11, 12, 13, 14, 17, 19, 23)
