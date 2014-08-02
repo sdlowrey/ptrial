@@ -24,30 +24,22 @@ class StorageObserver(LoopObserver):
                  data_format=PYTHON_DATA, time_as_key=True):
         super(StorageObserver, self).__init__(name, queue, interval, count, time_format, 
                                               data_format, time_as_key)
-        self._device = dev # FIXME: this is messed up; device path needs to be done in init
-        self._path = self.set_device(path)
-        self._field_names = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 
-                             'wr_blk', 'wr_tm', 'io_prog', 'io_tm', 'io_tmw')
-        
-    def set_device(self, path):
-        """
-        Observe the partition that is associated with a directory.
-        
-        TODO: handle more args and tie in to the constructor
-        
-        Args:
-          path: directory
-        """
         if not os.path.exists(path):
             raise ObserverError(_INVALID_PATH.format(path))
         self._path = path
-        self._get_partition_dev(path)
-        
-    def _get_partition_dev(self, path):
+        self._block_device = self._find_block_device()
+        self._device_stats = self._find_stat_path()
+        self._field_names = ('rd_comp', 'rd_mrgd', 'rd_blk', 'rd_tm', 'wr_comp', 'wr_mrgd', 
+                             'wr_blk', 'wr_tm', 'io_prog', 'io_tm', 'io_tmw')        
+
+    def _find_block_device(self):
         """
-        Get the partition device associated with a path
+        Get the block device associated with a path (directory).  Any path can be provided; it does
+        not have to be the the top-level directory at which a block device is mounted.
         """
-        # build a dict of mountpoints and their device names
+        # build a dict of mountpoints (directory) and device names
+        # 'mount' output looks like this:
+        #     /dev/vda9 on /data.local type xfs (rw,noatime)
         mountpoint = {}
         mounts = subprocess.check_output(['mount']).split('\n')
         for mount in mounts:
@@ -56,31 +48,38 @@ class StorageObserver(LoopObserver):
                 continue
             mountpoint[fields[2]] = fields[0]
 
+        # search all mountpoints for the path, recursing backward through the path name if necessary
+        path = self._path
         previous = ''
         while path != previous:
             if path in mountpoint.keys():
                 # we have the partition; get the real device file if it's a symlink
                 try:
                     realdev = os.readlink(mountpoint[path])
-                    self._device = os.path.basename(realdev)
+                    blockdev = os.path.basename(realdev)
                 except OSError:
                     # it's not a symlink
-                    self._device = os.path.basename(mountpoint[path])
-                return
+                    blockdev = os.path.basename(mountpoint[path])
+                return blockdev
+            # go back one level in the path
             previous = path
             path = os.path.dirname(path)
         raise ObserverError(_PATH_PART_NOT_FOUND.format(self._path))
-  
-    def _read_source(self):
-        """Get the metrics for the device and put them into a dictionary.
+    
+    def _find_stat_path(self):
+        """
+        Find the path to the device stats in sysfs
         """
         # Block device trees vary a little.  If the newer path doesn't work, try the older
         # one (2.6.18 era).  If that doesn't work, open() will raise IOError.
-        devpath = '/sys/block/{}/stat'.format(self._device)
-        if not os.path.exists(devpath):
-            devpath =  '/sys/block/{}/{}/stat'.format(self._device.rstrip(string.digits),
-                                                      self._device)
-        with open(devpath) as f:
+        stat_path = '/sys/block/{}/stat'.format(self._block_device)
+        if not os.path.exists(stat_path):
+            stat_path = '/sys/block/{}/{}/stat'.format(self._block_device.rstrip(string.digits),
+                                                       self._block_device)
+        return stat_path
+  
+    def _read_source(self):
+        with open(self._device_stats) as f:
             statline = f.readline().strip()
         data = OrderedDict(zip(self._field_names, statline.split()))
         return data
