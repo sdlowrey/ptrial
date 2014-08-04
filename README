@@ -1,0 +1,3 @@
+The ptrial package provides facilities for managing performance trials.  A performance trial
+is a timed event in which time-seres and event data is gathered from one or more hosts that
+are participating in the trial.
