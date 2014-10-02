@@ -6,6 +6,7 @@ from collections import OrderedDict
 from ptrial.observer.core import LoopObserver, INTEGER_TIME, PYTHON_DATA
 import os
 import os.path
+import string
 import subprocess
 
 # Private constants
