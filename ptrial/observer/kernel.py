@@ -158,3 +158,24 @@ class ProcessObserver(LoopObserver):
             stats.append(stat_list[i])
         data = OrderedDict(zip(self._field_names, stats))
         return data
+
+class MemoryObserver(LoopObserver):
+    """
+    Get system physical memory info.
+    
+    See https://www.centos.org/docs/5/html/5.2/Deployment_Guide/s2-proc-meminfo.html
+    """
+    
+    def _read_source(self):
+        # /proc/meminfo is formatted with labeled values, so just compress and parse
+        # into a dictionary.  Field names are provided by the output itself.
+        with open('/proc/meminfo','rb') as f:
+            raw_meminfo = f.read()
+        data = OrderedDict()
+        for item in raw_meminfo.replace(' ', '').replace('kB','').split('\n'):
+            if ':' not in item:
+                continue
+            key, val = item.split(':')
+            data[key] = val
+        self._field_names = tuple(data.keys())
+        return data
