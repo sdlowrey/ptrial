@@ -1,7 +1,7 @@
 #!/usr/local/bin/python2.7
 # Start a ptrial observer and convert the data to CSV text on stdout
 
-from ptrial.observer.core import CSV_DATA
+from ptrial.observer.core import CSV_DATA, ASCII_TIME
 from ptrial.observer.kernel import StorageObserver
 from Queue import Queue, Empty
 from threading import Thread
@@ -16,7 +16,8 @@ if __name__ == '__main__':
     mount_point = '/boot'
     
     q = Queue()
-    obs = StorageObserver(observer_name, q, mount_point, data_format=CSV_DATA)
+    obs = StorageObserver(observer_name, q, mount_point,
+                          time_format=ASCII_TIME, data_format=CSV_DATA)
     t = Thread(target=obs.run)
     t.start()
     

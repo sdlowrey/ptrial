@@ -66,9 +66,11 @@ class ObserverBase(object):
         if not name:
             raise ObserverError(_INVALID_NAME)
         self.name = str(name)
+        self._time_as_key = time_as_key
         self._time = self._integer_time
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
+            self._time_as_key = False
         self._data_format = data_format
         encoder = {
             JSON_DATA: self._json_data,
@@ -81,7 +83,6 @@ class ObserverBase(object):
         self._field_names = ()
         self._field_indexes = ()
         self._datapoint = None
-        self._time_as_key = time_as_key
             
     def get_datapoint(self):
         """
@@ -147,17 +148,20 @@ class ObserverBase(object):
           data: a Python dictionary containing data items only (i.e., not a complete datapoint)
         """
         # (Because timestamp is a key (and thus constantly changes) the writers in the Python csv
-        # module aren't of much use.  It's not a problem here, but consider making timestamp a value
-        # with its own key in the future.)
-                
-        # find the timestamp key
-        for k in data.keys():
-            if type(k) is int:
-                ts = k
+        # module aren't of much use.  
+        ts = None
+        if not self._time_as_key:
+            ts = data['time']
+        else:                    
+            # find the integer timestamp, which is a key
+            for k in data.keys():
+                if type(k) is int:
+                    ts = k
                 
         line = str(ts)
         for k in self._field_names:
-            line = line + ',' + str(data[ts][k])
+            metric = str(data[ts][k]) if self._time_as_key else str(data['data'][k])
+            line = line + ',' + metric
         return line
     
     def _json_data(self, data):
