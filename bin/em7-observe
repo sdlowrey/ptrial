@@ -2,7 +2,7 @@
 # Start a ptrial observer and convert the data to CSV text on stdout
 
 import argparse
-from ptrial.observer.core import CSV_DATA, ASCII_TIME
+from ptrial.observer.core import PYTHON_DATA, CSV_DATA, ASCII_TIME
 from ptrial.observer.kernel import StorageObserver, MemoryObserver
 from Queue import Queue, Empty
 from threading import Thread
@@ -17,13 +17,64 @@ NAME_HELP = 'Name of this trial run; used for something cool'
 WRITE_INTERVAL_HELP = 'Interval in seconds at which observations are written to output'
 DESTDIR_HELP = 'Directory to create output files in'
 
-if __name__ == '__main__':
-    # TODO move to argument parsing
-    output_interval = 5
-    run_duration = 15
-    observer_name = '{}-{}'.format('somehost', 'var')
-    mount_point = '/boot'
+class ObserverProto(object):
+    """
+    This is a prototype for exploring an interface/controller for working with many
+    Observer threads.
     
+    Might move the data formatting functions in core/observer.py to this class.
+    
+    Args:
+      observer : a LoopObserver to be run in a thread
+      data_fmt : format of the data returned by get() [default PYTHON_DATA]
+      
+    Methods:
+      start : start the observer's loop
+      get : get all the data currently in the Observer's output queue
+      
+    """
+    def __init__(self, observer, data_fmt=PYTHON_DATA):
+        self._obs = observer
+        self._data_fmt = data_fmt
+
+        # create a Thread and Queue for communicating with the thread
+        self._thread = Thread(target=self._obs.run)
+        self._q = Queue()
+        
+        # share the queue with the observer;
+        self._obs.queue = self._q
+        
+    def start(self):
+        """Start the thread, which runs the observer."""
+        self._thread.start()
+        
+    def stop(self):
+        """Stop the thread, throw away data remaining in the queue."""
+        self._obs.stop()
+        while not self._q.empty():
+            self._q.get()
+            self._q.task_done()
+            
+        # since the workers feeding the main process rather than being fed,
+        # the join() may be pointless.
+        self._q.join()
+        
+    def get(self):
+        """
+        Return all the data in the queue.
+        
+        This method will run until the queue is empty.
+        """
+        out_data = []
+        while True:
+            try:
+                out_data.append(self._q.get(block=False))
+                self._q.task_done()
+            except Empty:
+                break
+        return out_data
+    
+if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=SUMMARY_HELP)
     parser.add_argument('trial_name', metavar='NAME', help=NAME_HELP)
     parser.add_argument('--duration', default=0, help=DURATION_HELP)
@@ -31,14 +82,19 @@ if __name__ == '__main__':
     parser.add_argument('--destdir', default='/tmp', help=DESTDIR_HELP)
     parser.add_argument('--write-interval', default=5, help=WRITE_INTERVAL_HELP)
     args = parser.parse_args()
-    
-    
-    #q = Queue()
+    interval = int(args.interval)  #TODO get parser to cast this
+    duration = int(args.duration)
     ##obs = StorageObserver(observer_name, q, mount_point,
     ##                      time_format=ASCII_TIME, data_format=CSV_DATA)
-    #obs = MemoryObserver(observer_name, q, time_format=ASCII_TIME, data_format=CSV_DATA)
-    #t = Thread(target=obs.run)
-    #t.start()
+    obs = MemoryObserver('mem_observer', time_format=ASCII_TIME, data_format=CSV_DATA)
+    proto1 = ObserverProto(obs)
+    proto1.start()
+    for i in range(duration / interval):
+        time.sleep(interval)
+        data = proto1.get()
+        print data
+    proto1.stop()
+    
     #print obs.field_names
     #for i in range(run_duration / output_interval):
         #time.sleep(output_interval)

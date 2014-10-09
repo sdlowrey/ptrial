@@ -26,6 +26,7 @@ ASCII_TIME   = 2
 _INVALID_ARG      = 'Argument {} is an _INVALID type'
 _INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
 _INVALID_NAME     = 'An observer must have a name'
+_NO_QUEUE = 'No output queue set for observer' 
 
 class ObserverError(Exception):
     pass
@@ -215,11 +216,11 @@ class LoopObserver(ObserverBase):
         thread = Thread(target=obs.run, args=(input_q,))
         thread.start()
     Args:
-          outq: output queue for datapoints
+          outq: output queue for datapoints [default is None]
           interval: sleep interval in seconds between datapoints; default is 1 second
           count: number of datapoints to read, default 0 (no limit); used for unit testing
     """
-    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
+    def __init__(self, name, queue=None, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
         super(LoopObserver, self).__init__(name, time_format, data_format, time_as_key)
         self._queue = queue
@@ -236,6 +237,9 @@ class LoopObserver(ObserverBase):
         
         Use this method as a run target for a Thread object.
         """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+        
         counting = True if self._count > 0 else False
 
         while self._run and (self._count > 0 or not counting):
@@ -246,10 +250,28 @@ class LoopObserver(ObserverBase):
             time.sleep(self._interval)
         self._queue.put(self.end_data)
         
+    @property
+    def queue(self):
+        """
+        Get the output queue for this observer.
+        """
+        return self._queue
+
+    @queue.setter
+    def queue(self, q):
+        self._queue = q
+        
+    @queue.deleter
+    def queue(self):
+        del self._queue
+        
     def status(self):
         """
         Report on queue size and run time.
         """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+
         now = datetime.datetime.now()
         state = {
             'interval': self._interval,
@@ -259,6 +281,12 @@ class LoopObserver(ObserverBase):
         return state
 
     def stop(self):
+        """
+        Stop the observer on the next iteration.
+        """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+        
         self._run = False
 
 class TestLoopObserver(LoopObserver):
