@@ -138,7 +138,10 @@ class ObserverBase(object):
 
     def _csv_data(self, data):
         """
-        Reformat data as a CSV string
+        Reformat data as a CSV string.
+        
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
         
         Output consists only of the timestamp and the item values.  The timestamp is 
         always the first field.  Because the data is stored in an OrderedDict, the values are 
@@ -168,6 +171,9 @@ class ObserverBase(object):
         """
         Reformat datapoint as a JSON-formatted string 
         
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
+
         Args:
           data: a Python dictionary
         """

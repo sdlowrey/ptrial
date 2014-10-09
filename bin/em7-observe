@@ -1,12 +1,21 @@
 #!/usr/local/bin/python2.7
 # Start a ptrial observer and convert the data to CSV text on stdout
 
+import argparse
 from ptrial.observer.core import CSV_DATA, ASCII_TIME
 from ptrial.observer.kernel import StorageObserver, MemoryObserver
 from Queue import Queue, Empty
 from threading import Thread
 import time
 
+SUMMARY_HELP = """Poll system resources at regular intervals and periodically write
+the observations to storage."""
+
+DURATION_HELP = 'Length of time that the program should run.  Zero means "forever".'
+INTERVAL_HELP = 'Interval in seconds at which the poll the observation sources'
+NAME_HELP = 'Name of this trial run; used for something cool'
+WRITE_INTERVAL_HELP = 'Interval in seconds at which observations are written to output'
+DESTDIR_HELP = 'Directory to create output files in'
 
 if __name__ == '__main__':
     # TODO move to argument parsing
@@ -15,25 +24,34 @@ if __name__ == '__main__':
     observer_name = '{}-{}'.format('somehost', 'var')
     mount_point = '/boot'
     
-    q = Queue()
-    #obs = StorageObserver(observer_name, q, mount_point,
-    #                      time_format=ASCII_TIME, data_format=CSV_DATA)
-    obs = MemoryObserver(observer_name, q, time_format=ASCII_TIME, data_format=CSV_DATA)
-    t = Thread(target=obs.run)
-    t.start()
-    print obs.field_names
-    for i in range(run_duration / output_interval):
-        time.sleep(output_interval)
-        while True:
-            try:
-                data = q.get(block=False)
-                print data.encode('utf-8')
-                q.task_done()
-            except Empty:
-                break
-    obs.stop()
-    while not q.empty():
-        q.get()
-        q.task_done()
-    q.join()
+    parser = argparse.ArgumentParser(description=SUMMARY_HELP)
+    parser.add_argument('trial_name', metavar='NAME', help=NAME_HELP)
+    parser.add_argument('--duration', default=0, help=DURATION_HELP)
+    parser.add_argument('--interval', default=1, help=INTERVAL_HELP)
+    parser.add_argument('--destdir', default='/tmp', help=DESTDIR_HELP)
+    parser.add_argument('--write-interval', default=5, help=WRITE_INTERVAL_HELP)
+    args = parser.parse_args()
+    
+    
+    #q = Queue()
+    ##obs = StorageObserver(observer_name, q, mount_point,
+    ##                      time_format=ASCII_TIME, data_format=CSV_DATA)
+    #obs = MemoryObserver(observer_name, q, time_format=ASCII_TIME, data_format=CSV_DATA)
+    #t = Thread(target=obs.run)
+    #t.start()
+    #print obs.field_names
+    #for i in range(run_duration / output_interval):
+        #time.sleep(output_interval)
+        #while True:
+            #try:
+                #data = q.get(block=False)
+                #print data.encode('utf-8')
+                #q.task_done()
+            #except Empty:
+                #break
+    #obs.stop()
+    #while not q.empty():
+        #q.get()
+        #q.task_done()
+    #q.join()
     # complete
