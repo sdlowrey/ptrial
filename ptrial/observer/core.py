@@ -26,6 +26,7 @@ ASCII_TIME   = 2
 _INVALID_ARG      = 'Argument {} is an _INVALID type'
 _INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
 _INVALID_NAME     = 'An observer must have a name'
+_NO_QUEUE = 'No output queue set for observer' 
 
 class ObserverError(Exception):
     pass
@@ -66,9 +67,11 @@ class ObserverBase(object):
         if not name:
             raise ObserverError(_INVALID_NAME)
         self.name = str(name)
+        self._time_as_key = time_as_key
         self._time = self._integer_time
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
+            self._time_as_key = False
         self._data_format = data_format
         encoder = {
             JSON_DATA: self._json_data,
@@ -81,7 +84,6 @@ class ObserverBase(object):
         self._field_names = ()
         self._field_indexes = ()
         self._datapoint = None
-        self._time_as_key = time_as_key
             
     def get_datapoint(self):
         """
@@ -137,7 +139,10 @@ class ObserverBase(object):
 
     def _csv_data(self, data):
         """
-        Reformat data as a CSV string
+        Reformat data as a CSV string.
+        
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
         
         Output consists only of the timestamp and the item values.  The timestamp is 
         always the first field.  Because the data is stored in an OrderedDict, the values are 
@@ -147,23 +152,29 @@ class ObserverBase(object):
           data: a Python dictionary containing data items only (i.e., not a complete datapoint)
         """
         # (Because timestamp is a key (and thus constantly changes) the writers in the Python csv
-        # module aren't of much use.  It's not a problem here, but consider making timestamp a value
-        # with its own key in the future.)
-                
-        # find the timestamp key
-        for k in data.keys():
-            if type(k) is int:
-                ts = k
+        # module aren't of much use.  
+        ts = None
+        if not self._time_as_key:
+            ts = data['time']
+        else:                    
+            # find the integer timestamp, which is a key
+            for k in data.keys():
+                if type(k) is int:
+                    ts = k
                 
         line = str(ts)
         for k in self._field_names:
-            line = line + ',' + str(data[ts][k])
+            metric = str(data[ts][k]) if self._time_as_key else str(data['data'][k])
+            line = line + ',' + metric
         return line
     
     def _json_data(self, data):
         """
         Reformat datapoint as a JSON-formatted string 
         
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
+
         Args:
           data: a Python dictionary
         """
@@ -205,11 +216,11 @@ class LoopObserver(ObserverBase):
         thread = Thread(target=obs.run, args=(input_q,))
         thread.start()
     Args:
-          outq: output queue for datapoints
+          outq: output queue for datapoints [default is None]
           interval: sleep interval in seconds between datapoints; default is 1 second
           count: number of datapoints to read, default 0 (no limit); used for unit testing
     """
-    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
+    def __init__(self, name, queue=None, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
         super(LoopObserver, self).__init__(name, time_format, data_format, time_as_key)
         self._queue = queue
@@ -226,6 +237,9 @@ class LoopObserver(ObserverBase):
         
         Use this method as a run target for a Thread object.
         """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+        
         counting = True if self._count > 0 else False
 
         while self._run and (self._count > 0 or not counting):
@@ -236,10 +250,28 @@ class LoopObserver(ObserverBase):
             time.sleep(self._interval)
         self._queue.put(self.end_data)
         
+    @property
+    def queue(self):
+        """
+        Get the output queue for this observer.
+        """
+        return self._queue
+
+    @queue.setter
+    def queue(self, q):
+        self._queue = q
+        
+    @queue.deleter
+    def queue(self):
+        del self._queue
+        
     def status(self):
         """
         Report on queue size and run time.
         """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+
         now = datetime.datetime.now()
         state = {
             'interval': self._interval,
@@ -249,6 +281,12 @@ class LoopObserver(ObserverBase):
         return state
 
     def stop(self):
+        """
+        Stop the observer on the next iteration.
+        """
+        if not self._queue:
+            raise ObserverError(_NO_QUEUE)
+        
         self._run = False
 
 class TestLoopObserver(LoopObserver):
