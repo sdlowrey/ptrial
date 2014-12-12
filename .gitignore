@@ -1,3 +1,6 @@
 *.pyc
 *.wpu
 *.wpr
+build
+dist
+ptrial.egg-info
