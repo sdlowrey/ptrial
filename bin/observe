@@ -11,11 +11,11 @@ import time
 SUMMARY_HELP = """Poll system resources at regular intervals and periodically write
 the observations to storage."""
 
-DURATION_HELP = 'Length of time that the program should run.  Zero means "forever".'
-INTERVAL_HELP = 'Interval in seconds at which the poll the observation sources'
+DURATION_HELP = 'Time that the program should run (seconds)'
+INTERVAL_HELP = 'Observation polling interval (seconds)'
 NAME_HELP = 'Name of this trial run; used for something cool'
-WRITE_INTERVAL_HELP = 'Interval in seconds at which observations are written to output'
-DESTDIR_HELP = 'Directory to create output files in'
+WRITE_INTERVAL_HELP = 'Data write interval (seconds)'
+DESTDIR_HELP = 'Output directory'
 
 class ObserverProto(object):
     """
@@ -77,7 +77,7 @@ class ObserverProto(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=SUMMARY_HELP)
     parser.add_argument('trial_name', metavar='NAME', help=NAME_HELP)
-    parser.add_argument('--duration', default=0, help=DURATION_HELP)
+    parser.add_argument('--duration', default=5, help=DURATION_HELP)
     parser.add_argument('--interval', default=1, help=INTERVAL_HELP)
     parser.add_argument('--destdir', default='/tmp', help=DESTDIR_HELP)
     parser.add_argument('--write-interval', default=5, help=WRITE_INTERVAL_HELP)
