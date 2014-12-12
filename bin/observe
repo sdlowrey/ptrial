@@ -1,4 +1,4 @@
-#!/usr/local/bin/python2.7
+#!/usr/bin/env python
 # Start a ptrial observer and convert the data to CSV text on stdout
 
 import argparse
