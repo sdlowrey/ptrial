@@ -14,7 +14,7 @@ setup(
     keywords = "performance metrics distributed benchmark",
     url = "http://github.com/sdlowrey/ptrial",
     packages = ['ptrial', 'ptrial.observer'],
-    scripts = ['bin/em7-observe'],
+    scripts = ['bin/observe'],
     long_description = read('README'),
     classifiers = [
         "Development Status :: 3 - Alpha",
