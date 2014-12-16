@@ -67,7 +67,7 @@ class ObserverDataTestCase(unittest.TestCase):
         # delete the 'name' attribute, leaving only the timestamp key/value
         # just check the decade by looking at the first 3 characters of the key
         del obs._datapoint['name']
-        decade = int(obs._datapoint.keys()[0][:3])
+        decade = int(obs._datapoint['time'][:3])
         self.assertEqual(decade, 201)
 
     def test_interval_data_count(self):
