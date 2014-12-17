@@ -2,7 +2,7 @@
 Unit test cases for kernel observers
 """
 from ptrial.observer.kernel import ProcessObserver, StorageObserver
-import ptrial.util as util
+import util
 from Queue import Queue, Empty
 from threading import Thread
 import time
