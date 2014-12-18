@@ -1,7 +1,7 @@
 """
 Unit test cases for kernel observers
 """
-from ptrial.observer.kernel import ProcessObserver, StorageObserver
+from ptrial.observer.kernel import ProcessQueueObserver, StorageQueueObserver
 import util
 from Queue import Queue, Empty
 from threading import Thread
@@ -14,7 +14,7 @@ class StorageObserverTest(unittest.TestCase):
     """
     def setUp(self):
         name = 'var partition'
-        self.obs = StorageObserver(name)
+        self.obs = StorageQueueObserver(name)
         self.obs.set_device('/var')
         self.q = Queue()
 
@@ -51,7 +51,7 @@ class ProcessObserverTest(unittest.TestCase):
         """Get the PID of the first sshd process found."""
         name = 'sshd'
         pid = util.pids_by_name(name)[0]
-        self.obs = ProcessObserver(name, pid)
+        self.obs = ProcessQueueObserver(name, pid)
         self.q = Queue()
 
     def test_1_second_iter(self):

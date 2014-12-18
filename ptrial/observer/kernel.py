@@ -3,11 +3,12 @@ The observer.kernel modules gathers continuous kernel metrics.  These metrics ar
 /proc and /sys.
 """
 from collections import OrderedDict
-from ptrial.observer.core import LoopObserver, INTEGER_TIME, PYTHON_DATA
+from ptrial.observer.core import QueueObserver, INTEGER_TIME, PYTHON_DATA
 import os
 import os.path
 import string
 import subprocess
+import sys
 
 # Private constants
 _INVALID_PATH     = 'No such path "{}"'
@@ -15,15 +16,17 @@ _PATH_PART_NOT_FOUND = 'Partition for "{}" directory not found'
 _PID_NOT_FOUND    = 'Process {} not found'
 
 
-class StorageObserver(LoopObserver):
+class StorageQueueObserver(QueueObserver):
     """
-    Get the block I/O stats for a device.
+    Get the block I/O stats for a device and write the datapoints to a Queue object.
+
+    Objects of this type can be used in "producer threads" for consumption by other threads.
     """
     # https://www.kernel.org/doc/Documentation/iostats.txt
     
-    def __init__(self, name, queue, path=None, interval=1, count=0, time_format=INTEGER_TIME, 
+    def __init__(self, path, queue, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
-        super(StorageObserver, self).__init__(name, queue, interval, count, time_format, 
+        super(StorageQueueObserver, self).__init__(name, interval, count, time_format, 
                                               data_format, time_as_key)
         if not os.path.exists(path):
             raise ObserverError(_INVALID_PATH.format(path))
@@ -85,7 +88,7 @@ class StorageObserver(LoopObserver):
         data = OrderedDict(zip(self._field_names, statline.split()))
         return data
 
-class ProcessObserver(LoopObserver):
+class ProcessQueueObserver(QueueObserver):
     """
     Get stats for a process/task.
     
@@ -138,7 +141,7 @@ class ProcessObserver(LoopObserver):
     
     def __init__(self, name, queue, pid=None, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
-        super(ProcessObserver, self).__init__(name, queue, interval, count, time_format, 
+        super(ProcessQueueObserver, self).__init__(name, queue, interval, count, time_format, 
                                               data_format, time_as_key)
         self._field_names = ('state', 'minflt', 'cminflt', 'majflt', 'cmajflt', 'utime', 'stime',
                              'priority', 'nthreads', 'rss')
@@ -159,7 +162,7 @@ class ProcessObserver(LoopObserver):
         data = OrderedDict(zip(self._field_names, stats))
         return data
 
-class MemoryObserver(LoopObserver):
+class MemoryObserver(QueueObserver):
     """
     Get system physical memory info.
     
