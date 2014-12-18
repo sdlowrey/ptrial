@@ -24,9 +24,11 @@ ASCII_TIME   = 2
 
 # Private constants
 _INVALID_ARG      = 'Argument {} is an _INVALID type'
+_INVALID_FORMAT = 'Invalid output format' 
 _INVALID_INTERVAL = 'Loop observer interval must be >= 1 second'
 _INVALID_NAME     = 'An observer must have a name'
-_NO_QUEUE = 'No output queue set for observer' 
+_NO_QUEUE = 'No output queue set for observer'
+_NO_OUTPUT = 'No output object to send to.'
 
 class ObserverError(Exception):
     pass
@@ -45,10 +47,11 @@ class ObserverBase(object):
     Constructor args:
 
           name:        the name of this observer; must be a string or have a string representation
-          time_format: encoding format for timestamps
-          data_format: encoding format for data collections
+          output:      an object of type Output that handles data encoding and transmission
+          time_format: encoding format for timestamps  TODO: move to Output
+          data_format: encoding format for data collections TODO: move to Output
           time_as_key: timestamp is a key (data map is the value) for use in column family DBs; if
-                       set to False, then time is a value for the key 'timestamp'
+                       set to False, then time is a value for the key 'time'
                        (see http://www.datastax.com/dev/blog/advanced-time-series-with-cassandra)
     
     Attributes:
@@ -59,7 +62,7 @@ class ObserverBase(object):
       
     """
     
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
+    def __init__(self, name, output=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
         """
         Check the name and determine the time formatting function to use.
         
@@ -69,6 +72,8 @@ class ObserverBase(object):
         self.name = str(name)
         self._time_as_key = time_as_key
         self._time = self._integer_time
+        self._output = output
+        
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
             self._time_as_key = False
@@ -87,7 +92,7 @@ class ObserverBase(object):
             
     def get_datapoint(self):
         """
-        Retrieve a datapoint with the correct encoding applied.
+        Retrieve a datapoint with the correct encoding applied.  DEPRECATED
         """
         if self._time_as_key:
             self._datapoint = { 'name': self.name, self._time() : self._read_source() }
@@ -95,6 +100,27 @@ class ObserverBase(object):
             self._datapoint = {'name': self.name, 'time': self._time(), 'data': self._read_source()}
         return self._encode(self._datapoint)
     
+    def get(self):
+        """
+        Retrieve a datapoint from the source (defined in subclasses?).
+        """
+        if self._time_as_key:
+            self._datapoint = { 'name': self.name, self._time() : self._read_source() }
+        else:
+            self._datapoint = {'name': self.name, 'time': self._time(), 'data': self._read_source()}
+        return self._datapoint
+    
+    def put(self):
+        """
+        Write the datapoint to the Output object.
+        
+        The put() method passes a datapoint to the Output object, which knows how to encode the data
+        and send it to wherever it needs to go (queue, network, file, etc).
+        """
+        if not self._output:
+            raise ObserverError(_NO_OUTPUT)
+        self._output.put(self._datapoint)
+        
     @property
     def datapoint(self):
         """The current datapoint as a dictionary object.
@@ -188,13 +214,36 @@ class ObserverBase(object):
           data: a Python dictionary containing data items only (i.e., not a complete datapoint)
         """
         return data
+
+class OutputBase(object):
+    """
+    This is the base handler for data encoding and transmission.
     
+    Encoding simply changes the datapoint from a Python dictionary to something else, ;ike JSON.  Or
+    it can pass it through, unchanged.
+    
+    Transmission provides a standard interface to all supported output types such as files, sockets,
+    and queues.
+    
+    Args:
+       target: an object that accepts data and sends/writes/queues it
+       fmt: data format; CSV_DATA, JSON_DATA, or PYTHON_DATA
+    """
+    def __init__(self, target, fmt):
+        if fmt not in (CSV_DATA, JSON_DATA, PYTHON_DATA):
+            raise OutputError(_INVALID_FORMAT)
+        self._target = target
+        self._fmt = fmt
+        
+    def put(self, data):
+        self._target.write(data)
+        
 class TestObserver(ObserverBase):
     """
     A one-shot observer that generates a single fake datapoint.
     """
-    def __init__(self, name, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
-        super(TestObserver, self).__init__(name, time_format, data_format, time_as_key)
+    def __init__(self, name, output=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
+        super(TestObserver, self).__init__(name, output, time_format, data_format, time_as_key)
         self._field_names = ('thing1', 'thing2')
 
     def _read_source(self):
@@ -202,6 +251,9 @@ class TestObserver(ObserverBase):
         for thing in self._field_names:
             data[thing] =  random.randint(1,999999)
         return data
+
+class ContinuousObserver(ObserverBase):
+    pass
 
 class QueueObserver(ObserverBase):
     """
