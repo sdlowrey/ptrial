@@ -1,8 +1,8 @@
 """
 Test for the base classes in the observer.core module
 """
-from ptrial.observer.core import (ObserverBase, ObserverError, LoopObserver,
-                                   TestObserver, TestLoopObserver)
+from ptrial.observer.core import (ObserverBase, ObserverError, QueueObserver,
+                                   TestObserver, TestQueueObserver)
 from ptrial.observer.core import ASCII_TIME
 from Queue import Queue, Empty
 from threading import Thread
@@ -38,7 +38,7 @@ class ObserverDataTestCase(unittest.TestCase):
     The TestObserver can return a test datapoint.  The timestamp is now and the data is a
     dict with a single test element.  
 
-    The TestLoopServer observer continually returns test data.
+    The TestQueueServer observer continually returns test data.
     """
 
     def setUp(self):
@@ -75,7 +75,7 @@ class ObserverDataTestCase(unittest.TestCase):
         Test LoopObserver using a count limit.
         """
         input_q = Queue()
-        obs = TestLoopObserver(self.observer_name, input_q, count=3)
+        obs = TestQueueObserver(self.observer_name, input_q, count=3)
         obs_thread = Thread(target=obs.run)
         obs_thread.start()
         while True:
@@ -91,7 +91,7 @@ class ObserverDataTestCase(unittest.TestCase):
         Test loop observer with explicit stop.  
         """
         input_q = Queue()
-        obs = TestLoopObserver(self.observer_name, input_q)
+        obs = TestQueueObserver(self.observer_name, input_q)
         obs_thread = Thread(target=obs.run)
         obs_thread.start()
         time.sleep(3)  # queue up some data

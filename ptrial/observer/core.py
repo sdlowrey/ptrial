@@ -203,7 +203,7 @@ class TestObserver(ObserverBase):
             data[thing] =  random.randint(1,999999)
         return data
 
-class LoopObserver(ObserverBase):
+class QueueObserver(ObserverBase):
     """
     Make observations at regular intervals and place data into a queue.
     
@@ -222,7 +222,7 @@ class LoopObserver(ObserverBase):
     """
     def __init__(self, name, queue=None, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
-        super(LoopObserver, self).__init__(name, time_format, data_format, time_as_key)
+        super(QueueObserver, self).__init__(name, time_format, data_format, time_as_key)
         self._queue = queue
         self._interval = interval
         self._count = count
@@ -289,13 +289,13 @@ class LoopObserver(ObserverBase):
         
         self._run = False
 
-class TestLoopObserver(LoopObserver):
+class TestQueueObserver(QueueObserver):
     """
     A loop server that generates random data for testing.
     """
     def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
                  data_format=PYTHON_DATA, time_as_key=True):
-        super(TestLoopObserver, self).__init__(name, queue, interval, count, time_format, 
+        super(TestQueueObserver, self).__init__(name, queue, interval, count, time_format, 
                                                data_format, time_as_key)
         self._field_names = ('test',)
         
