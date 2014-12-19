@@ -54,27 +54,23 @@ class ObserverDataTestCase(unittest.TestCase):
         del obs._datapoint['name']
         decade = int(obs._datapoint['time'][:3])
         self.assertEqual(decade, 201)
-        with self.assertRaises(ObserverError):
-            obs.put()
 
 class ObserverOutputTestCase(unittest.TestCase):
     """
     A simple test for the Output class through a "one shot" TestObserver.  
     
-    Write to a StringIO, which is equivalent to stdout or file, so that we can easily fetch what 
-    was written.
+    Default Ouput uses StringIO, which is equivalent to stdout or file.
     """
     def setUp(self):
         # create a very basic Output object that writes data to StringIO, then hand it to a 
         # test observer
-        self.out = OutputBase(target=StringIO(), fmt=JSON_DATA) 
-        self.obs = TestObserver('test', output=self.out, time_as_key=False)
+        self.obs = TestObserver('test', time_as_key=False)
         
     def test_simple_output(self):
         self.obs.get()
         self.obs.put()
-        # cheat: call StringIO.getvalue() directly on Output internal
-        output = self.out._target.getvalue()
+        # use a private Observer hook to access what was written
+        output = self.obs._get_output()
         self.assertIsInstance(output, str)
         data = json.loads(output)
         self.assertIsInstance(data, dict)

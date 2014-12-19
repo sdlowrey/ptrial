@@ -9,6 +9,7 @@ from Queue import Queue
 import random
 import re
 import string
+from StringIO import StringIO
 import subprocess
 import time
 
@@ -41,13 +42,13 @@ class ObserverBase(object):
     Timestamps can be encoded as seconds-from-epoch (integer) or string (Y-m-d H:M:S).  Use
     the INTEGER_TIME and ASCII_TIME constants to choose.  The default is INTEGER_TIME.
 
-    Data can be returned as a Python dictionary, JSON object, or CSV text (one line).  Use the
-    *_DATA constants to choose.  CSV data will be returned in 
+    Data formatting and storage/transmission is handled by an Output object.  If not supplied by
+    the caller, a default Output will be created during initialization
         
-    Constructor args:
+    Args:
 
           name:        the name of this observer; must be a string or have a string representation
-          output:      an object of type Output that handles data encoding and transmission
+          output:      Output object for data encoding and transmission
           time_format: encoding format for timestamps  TODO: move to Output
           data_format: encoding format for data collections TODO: move to Output
           time_as_key: timestamp is a key (data map is the value) for use in column family DBs; if
@@ -62,7 +63,7 @@ class ObserverBase(object):
       
     """
     
-    def __init__(self, name, output=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
+    def __init__(self, name, output=None, time_format=INTEGER_TIME, time_as_key=True):
         """
         Check the name and determine the time formatting function to use.
         
@@ -73,20 +74,14 @@ class ObserverBase(object):
         self._time_as_key = time_as_key
         self._time = self._integer_time
         self._output = output
+        if output is None:
+            # create a default Output object
+            self._output = OutputBase()
         
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
             self._time_as_key = False
             
-        # TODO delete the following when everything is converted to use Output
-        self._data_format = data_format
-        encoder = {
-            JSON_DATA: self._json_data,
-            PYTHON_DATA: self._python_data,
-            CSV_DATA: self._csv_data
-        }
-        self._encode = encoder[data_format]
-
         # Field (metric) names and their optional string indexes must be defined in subclasses.
         self._field_names = ()
         self._field_indexes = ()
@@ -114,13 +109,8 @@ class ObserverBase(object):
     
     def put(self):
         """
-        Write the datapoint to the Output object.
-        
-        The put() method passes a datapoint to the Output object, which knows how to encode the data
-        and send it to wherever it needs to go (queue, network, file, etc).
+        Write/send the datapoint via the Output object.        
         """
-        if not self._output:
-            raise ObserverError(_NO_OUTPUT)
         self._output.put(self._datapoint)
         
     @property
@@ -165,58 +155,13 @@ class ObserverBase(object):
     def _integer_time(self):
         return int(time.time())    
 
-    # TODO: delete when conversion to Output complete
-    def _csv_data(self, data):
+    def _get_output(self):
         """
-        Reformat data as a CSV string.
+        Private method to access data written by Output object.  Used by unit tests.
         
-        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
-        this chore.
-        
-        Output consists only of the timestamp and the item values.  The timestamp is 
-        always the first field.  Because the data is stored in an OrderedDict, the values are 
-        returned in the order of the keys as they are defined in the subclass *_DATA tuples. 
-        
-        Args:
-          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        The expectation is that the _target attribute of self._output is a StringIO object.
         """
-        # (Because timestamp is a key (and thus constantly changes) the writers in the Python csv
-        # module aren't of much use.  
-        ts = None
-        if not self._time_as_key:
-            ts = data['time']
-        else:                    
-            # find the integer timestamp, which is a key
-            for k in data.keys():
-                if type(k) is int:
-                    ts = k
-                
-        line = str(ts)
-        for k in self._field_names:
-            metric = str(data[ts][k]) if self._time_as_key else str(data['data'][k])
-            line = line + ',' + metric
-        return line
-    
-    def _json_data(self, data):
-        """
-        Reformat datapoint as a JSON-formatted string 
-        
-        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
-        this chore.
-
-        Args:
-          data: a Python dictionary
-        """
-        return json.dumps(data)
-    
-    def _python_data(self, data):
-        """
-        No formatting done.  Simply return the data as-is. 
-        
-        Args:
-          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
-        """
-        return data
+        return self._output._target.getvalue()
 
 class OutputBase(object):
     """
@@ -229,13 +174,15 @@ class OutputBase(object):
     and queues.
     
     Args:
-       target: an object that accepts data and sends/writes/queues it
-       fmt: data format; CSV_DATA, JSON_DATA, or PYTHON_DATA
+       target: an object that accepts data and sends/writes/queues it; default is StringIO
+       fmt: data format; CSV_DATA, JSON_DATA, or PYTHON_DATA; default is JSON
     """
-    def __init__(self, target, fmt):
+    def __init__(self, target=None, fmt=JSON_DATA):
         if fmt not in (CSV_DATA, JSON_DATA, PYTHON_DATA):
             raise OutputError(_INVALID_FORMAT)
         self._target = target
+        if target is None:
+            self._target = StringIO()
         self._fmt = fmt
         encoder = {
             JSON_DATA: self._json_data,
@@ -303,8 +250,8 @@ class TestObserver(ObserverBase):
     """
     A one-shot observer that generates a single fake datapoint.
     """
-    def __init__(self, name, output=None, time_format=INTEGER_TIME, data_format=PYTHON_DATA, time_as_key=True):
-        super(TestObserver, self).__init__(name, output, time_format, data_format, time_as_key)
+    def __init__(self, name, output=None, time_format=INTEGER_TIME, time_as_key=True):
+        super(TestObserver, self).__init__(name, output, time_format, time_as_key)
         self._field_names = ('thing1', 'thing2')
 
     def _read_source(self):
@@ -333,9 +280,8 @@ class QueueObserver(ObserverBase):
           interval: sleep interval in seconds between datapoints; default is 1 second
           count: number of datapoints to read, default 0 (no limit); used for unit testing
     """
-    def __init__(self, name, queue=None, interval=1, count=0, time_format=INTEGER_TIME, 
-                 data_format=PYTHON_DATA, time_as_key=True):
-        super(QueueObserver, self).__init__(name, time_format, data_format, time_as_key)
+    def __init__(self, name, queue=None, interval=1, count=0, time_format=INTEGER_TIME,  time_as_key=True):
+        super(QueueObserver, self).__init__(name, time_format, time_as_key)
         self._queue = queue
         self._interval = interval
         self._count = count
@@ -406,10 +352,8 @@ class TestQueueObserver(QueueObserver):
     """
     A loop server that generates random data for testing.
     """
-    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, 
-                 data_format=PYTHON_DATA, time_as_key=True):
-        super(TestQueueObserver, self).__init__(name, queue, interval, count, time_format, 
-                                               data_format, time_as_key)
+    def __init__(self, name, queue, interval=1, count=0, time_format=INTEGER_TIME, time_as_key=True):
+        super(TestQueueObserver, self).__init__(name, queue, interval, count, time_format, time_as_key)
         self._field_names = ('test',)
         
     def _read_source(self):
