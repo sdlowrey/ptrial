@@ -1,12 +1,13 @@
 """
 Test for the base classes in the observer.core module
 """
+import json
 from ptrial.observer.core import ObserverBase, ObserverError, TestObserver, OutputBase
 from ptrial.observer.core import ContinuousObserver
-from ptrial.observer.core import ASCII_TIME, PYTHON_DATA
+from ptrial.observer.core import ASCII_TIME, JSON_DATA, PYTHON_DATA
 from Queue import Queue, Empty
 from threading import Thread
-import sys
+from StringIO import StringIO
 import time
 import unittest
 
@@ -57,14 +58,27 @@ class ObserverDataTestCase(unittest.TestCase):
             obs.put()
 
 class ObserverOutputTestCase(unittest.TestCase):
+    """
+    A simple test for the Output class through a "one shot" TestObserver.  
     
+    Write to a StringIO, which is equivalent to stdout or file, so that we can easily fetch what 
+    was written.
+    """
     def setUp(self):
-        self.out = OutputBase(target=sys.stdout, fmt=PYTHON_DATA)  # base class writes to stdout
-        self.obs = TestObserver('test', output=self.out)
+        # create a very basic Output object that writes data to StringIO, then hand it to a 
+        # test observer
+        self.out = OutputBase(target=StringIO(), fmt=JSON_DATA) 
+        self.obs = TestObserver('test', output=self.out, time_as_key=False)
         
     def test_simple_output(self):
         self.obs.get()
-        self.obs.put()  # should be equivalent to "print"
+        self.obs.put()
+        # cheat: call StringIO.getvalue() directly on Output internal
+        output = self.out._target.getvalue()
+        self.assertIsInstance(output, str)
+        data = json.loads(output)
+        self.assertIsInstance(data, dict)
+        self.assertIsInstance(data['time'], int)
         
 class ContinuousObserverTestCase(unittest.TestCase):
     def test_oneshot_stdout(self):

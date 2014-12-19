@@ -77,6 +77,8 @@ class ObserverBase(object):
         if time_format == ASCII_TIME:
             self._time = self._ascii_time
             self._time_as_key = False
+            
+        # TODO delete the following when everything is converted to use Output
         self._data_format = data_format
         encoder = {
             JSON_DATA: self._json_data,
@@ -163,6 +165,7 @@ class ObserverBase(object):
     def _integer_time(self):
         return int(time.time())    
 
+    # TODO: delete when conversion to Output complete
     def _csv_data(self, data):
         """
         Reformat data as a CSV string.
@@ -234,10 +237,68 @@ class OutputBase(object):
             raise OutputError(_INVALID_FORMAT)
         self._target = target
         self._fmt = fmt
+        encoder = {
+            JSON_DATA: self._json_data,
+            PYTHON_DATA: self._python_data,
+            CSV_DATA: self._csv_data
+        }
+        self._encode = encoder[fmt]
         
     def put(self, data):
-        self._target.write(str(data))
+        self._target.write(self._encode(data))
+
+    def _csv_data(self, data):
+        """
+        Reformat data as a CSV string.
         
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
+        
+        Output consists only of the timestamp and the item values.  The timestamp is 
+        always the first field.  Because the data is stored in an OrderedDict, the values are 
+        returned in the order of the keys as they are defined in the subclass *_DATA tuples. 
+        
+        Args:
+          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        """
+        # (Because timestamp is a key (and thus constantly changes) the writers in the Python csv
+        # module aren't of much use.  
+        ts = None
+        if not self._time_as_key:
+            ts = data['time']
+        else:                    
+            # find the integer timestamp, which is a key
+            for k in data.keys():
+                if type(k) is int:
+                    ts = k
+                
+        line = str(ts)
+        for k in self._field_names:
+            metric = str(data[ts][k]) if self._time_as_key else str(data['data'][k])
+            line = line + ',' + metric
+        return line
+    
+    def _json_data(self, data):
+        """
+        Reformat datapoint as a JSON-formatted string 
+        
+        NOTE: use of data formatters here is discouraged.  It's better if the caller can handle
+        this chore.
+
+        Args:
+          data: a Python dictionary
+        """
+        return json.dumps(data)
+    
+    def _python_data(self, data):
+        """
+        No formatting done.  Simply return the data as-is. 
+        
+        Args:
+          data: a Python dictionary containing data items only (i.e., not a complete datapoint)
+        """
+        return data
+
 class TestObserver(ObserverBase):
     """
     A one-shot observer that generates a single fake datapoint.
