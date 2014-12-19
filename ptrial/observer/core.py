@@ -236,7 +236,7 @@ class OutputBase(object):
         self._fmt = fmt
         
     def put(self, data):
-        self._target.write(data)
+        self._target.write(str(data))
         
 class TestObserver(ObserverBase):
     """
